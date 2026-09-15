@@ -6,7 +6,6 @@ pub mod common;
 pub mod events;
 pub mod integrations;
 pub mod panes;
-pub mod plugins;
 pub mod response;
 pub mod server;
 pub mod session;
@@ -20,7 +19,6 @@ pub use common::*;
 pub use events::*;
 pub use integrations::*;
 pub use panes::*;
-pub use plugins::*;
 pub use response::*;
 pub use server::*;
 pub use session::*;
@@ -244,28 +242,6 @@ pub enum Method {
     IntegrationInstall(IntegrationInstallParams),
     #[serde(rename = "integration.uninstall")]
     IntegrationUninstall(IntegrationUninstallParams),
-    #[serde(rename = "plugin.link")]
-    PluginLink(PluginLinkParams),
-    #[serde(rename = "plugin.list")]
-    PluginList(PluginListParams),
-    #[serde(rename = "plugin.unlink")]
-    PluginUnlink(PluginUnlinkParams),
-    #[serde(rename = "plugin.enable")]
-    PluginEnable(PluginSetEnabledParams),
-    #[serde(rename = "plugin.disable")]
-    PluginDisable(PluginSetEnabledParams),
-    #[serde(rename = "plugin.action.list")]
-    PluginActionList(PluginActionListParams),
-    #[serde(rename = "plugin.action.invoke")]
-    PluginActionInvoke(PluginActionInvokeParams),
-    #[serde(rename = "plugin.log.list")]
-    PluginLogList(PluginLogListParams),
-    #[serde(rename = "plugin.pane.open")]
-    PluginPaneOpen(PluginPaneOpenParams),
-    #[serde(rename = "plugin.pane.focus")]
-    PluginPaneFocus(PluginPaneFocusParams),
-    #[serde(rename = "plugin.pane.close")]
-    PluginPaneClose(PluginPaneCloseParams),
 }
 
 #[cfg(test)]

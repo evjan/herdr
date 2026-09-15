@@ -442,57 +442,6 @@ fn custom_binding_invokes_only_the_endpoint_manifest_id() {
 }
 
 #[test]
-fn plugin_command_carries_client_owned_selection_coordinates() {
-    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
-    let binding = crate::config::CustomCommandKeybind {
-        bindings: crate::config::ActionKeybinds::prefix("p"),
-        label: "prefix+p".into(),
-        command: "plugin.action".into(),
-        action: crate::config::CustomCommandAction::PluginAction,
-        description: None,
-        width: None,
-        height: None,
-    };
-    let mut projection = snapshot();
-    projection
-        .commands
-        .push(crate::protocol::ClientShellCommand {
-            command_id: "cmd_plugin".into(),
-            binding_label: binding.label.clone(),
-            binding_labels: binding.bindings.labels(),
-            action: crate::protocol::ClientShellCommandAction::PluginAction,
-            description: None,
-        });
-    state.set_snapshot(Box::new(projection));
-    let mut pane_surface = surface();
-    pane_surface.panes[0].content_revision = 42;
-    state.set_pane_surface(pane_surface);
-    let mut selection =
-        crate::selection::Selection::absolute_range("pane_1".to_owned(), (2, 3), (4, 5));
-    assert!(selection.finish());
-    state.selection = Some(selection);
-
-    let mut outcome = ClientShellInput::default();
-    state.record_binding(crate::input::KeybindMatch::Command(binding), &mut outcome);
-
-    let [ClientShellAction::Endpoint { request, .. }] = &outcome.actions[..] else {
-        panic!("expected endpoint command invocation");
-    };
-    let crate::api::schema::Method::CommandInvoke(params) = &request.method else {
-        panic!("expected command.invoke");
-    };
-    assert_eq!(
-        params.selection,
-        Some(crate::api::schema::PaneSelectionReadParams {
-            pane_id: "pane_1".into(),
-            anchor: crate::api::schema::PaneTextPoint { row: 2, col: 3 },
-            cursor: crate::api::schema::PaneTextPoint { row: 4, col: 5 },
-            content_revision: Some(42),
-        })
-    );
-}
-
-#[test]
 fn unavailable_endpoint_method_is_disabled_without_disconnect() {
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
     state.set_snapshot(Box::new(snapshot()));
@@ -695,17 +644,55 @@ fn custom_binding_missing_from_endpoint_manifest_is_not_forwarded() {
 }
 
 #[test]
+fn resize_mode_reuses_endpoint_resize_and_stays_active_until_done() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+
+    assert!(state.handle_input_bytes(&[0x02]).actions.is_empty());
+    assert!(state.handle_input_bytes(b"r").actions.is_empty());
+    assert_eq!(state.mode, ClientShellMode::Resize);
+
+    let modified = state.handle_input_bytes(b"\x1b[1;2D");
+    assert!(matches!(
+        &modified.actions[..],
+        [ClientShellAction::Endpoint { request, .. }]
+            if matches!(
+                &request.method,
+                crate::api::schema::Method::PaneResize(params)
+                    if params.direction == crate::api::schema::PaneDirection::Left
+            )
+    ));
+    assert_eq!(state.mode, ClientShellMode::Resize);
+
+    let resize = state.handle_input_bytes(b"h");
+    let [ClientShellAction::Endpoint { request, .. }] = &resize.actions[..] else {
+        panic!("resize should use endpoint API");
+    };
+    assert!(matches!(
+        &request.method,
+        crate::api::schema::Method::PaneResize(params)
+            if params.pane_id.as_deref() == Some("pane_1")
+                && params.direction == crate::api::schema::PaneDirection::Left
+    ));
+    assert_eq!(state.mode, ClientShellMode::Resize);
+
+    assert!(state.handle_input_bytes(b"\r").actions.is_empty());
+    assert_eq!(state.mode, ClientShellMode::Terminal);
+}
+
+#[test]
 fn help_overlay_restores_released_search_scroll_and_custom_binding_behavior() {
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
     let mut projection = snapshot();
     projection
         .commands
         .push(crate::protocol::ClientShellCommand {
-            command_id: "plugin-action".into(),
+            command_id: "shell-action".into(),
             binding_label: "prefix+z".into(),
             binding_labels: vec!["prefix+z".into()],
-            action: crate::protocol::ClientShellCommandAction::PluginAction,
-            description: Some("run plugin action".into()),
+            action: crate::protocol::ClientShellCommandAction::Shell,
+            description: Some("run shell action".into()),
         });
     state.set_snapshot(Box::new(projection));
     state.set_pane_surface(surface());
@@ -730,7 +717,7 @@ fn help_overlay_restores_released_search_scroll_and_custom_binding_behavior() {
     assert_ne!(state.hits.help_scrollbar, Rect::default());
 
     state.handle_input_bytes(b"/");
-    state.handle_input_bytes(b"plugin");
+    state.handle_input_bytes(b"shell");
     let custom = state.compose(106, 30).expect("custom help search");
     let text = custom
         .cells
@@ -743,7 +730,7 @@ fn help_overlay_restores_released_search_scroll_and_custom_binding_behavior() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(text.contains("custom"));
-    assert!(text.contains("run plugin action"));
+    assert!(text.contains("run shell action"));
     state.handle_input_bytes(b"\x1b");
 
     state.handle_input_bytes(b"/");
@@ -787,42 +774,4 @@ fn help_overlay_restores_released_search_scroll_and_custom_binding_behavior() {
     ));
     state.handle_input_bytes(b"?");
     assert!(state.overlay.is_none());
-}
-
-#[test]
-fn resize_mode_reuses_endpoint_resize_and_stays_active_until_done() {
-    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
-    state.set_snapshot(Box::new(snapshot()));
-    state.set_pane_surface(surface());
-
-    assert!(state.handle_input_bytes(&[0x02]).actions.is_empty());
-    assert!(state.handle_input_bytes(b"r").actions.is_empty());
-    assert_eq!(state.mode, ClientShellMode::Resize);
-
-    let modified = state.handle_input_bytes(b"\x1b[1;2D");
-    assert!(matches!(
-        &modified.actions[..],
-        [ClientShellAction::Endpoint { request, .. }]
-            if matches!(
-                &request.method,
-                crate::api::schema::Method::PaneResize(params)
-                    if params.direction == crate::api::schema::PaneDirection::Left
-            )
-    ));
-    assert_eq!(state.mode, ClientShellMode::Resize);
-
-    let resize = state.handle_input_bytes(b"h");
-    let [ClientShellAction::Endpoint { request, .. }] = &resize.actions[..] else {
-        panic!("resize should use endpoint API");
-    };
-    assert!(matches!(
-        &request.method,
-        crate::api::schema::Method::PaneResize(params)
-            if params.pane_id.as_deref() == Some("pane_1")
-                && params.direction == crate::api::schema::PaneDirection::Left
-    ));
-    assert_eq!(state.mode, ClientShellMode::Resize);
-
-    assert!(state.handle_input_bytes(b"\r").actions.is_empty());
-    assert_eq!(state.mode, ClientShellMode::Terminal);
 }

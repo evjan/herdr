@@ -412,7 +412,7 @@ pub(super) fn render_panes(
     render_pane_borders(app, ws, pane_infos, split_borders, frame);
 }
 
-pub(crate) fn popup_pane_rects(app: &AppState, area: Rect) -> Option<(Rect, Rect)> {
+fn popup_pane_rects(app: &AppState, area: Rect) -> Option<(Rect, Rect)> {
     let popup = app.popup_pane.as_ref()?;
     resolve_popup_geometry(popup.width, popup.height, area)
         .map(|geometry| (geometry.outer, geometry.inner))

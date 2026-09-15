@@ -220,17 +220,6 @@ instead. Exit the shell to close the popup and restore the tiled terminal view.
 
 `type = "shell"` runs detached in the background.
 
-`type = "plugin_action"` invokes an installed plugin action id. Use the
-qualified id when action ids are not globally unique:
-
-```toml
-[[keys.command]]
-key = "prefix+l"
-type = "plugin_action"
-command = "example.layout.apply"
-description = "apply layout"
-```
-
 `description` is optional. When set, it appears in the keybind help panel (opened with `prefix+?`) instead of the default `'custom command'` label.
 
 Custom commands receive `HERDR_SOCKET_PATH`, `HERDR_BIN_PATH`, `HERDR_ACTIVE_WORKSPACE_ID`, `HERDR_ACTIVE_TAB_ID`, `HERDR_ACTIVE_PANE_ID`, and `HERDR_ACTIVE_PANE_CWD` when those values are available. Shell commands run from the focused pane's working directory when Herdr can detect it.
@@ -444,7 +433,7 @@ claude = [
 
 An override replaces `rows`; it does not extend it. Override keys are case-sensitive canonical agent IDs such as `claude`, `codex`, and `pi`. Detection aliases such as `claude-code` are not accepted. Agents without an override, including custom reported agents, use `rows`.
 
-Custom `$name` tokens are dynamic values, not literal text. Add the token to a layout, then report its value from a script or plugin:
+Custom `$name` tokens are dynamic values, not literal text. Add the token to a layout, then report its value from a script:
 
 ```toml
 [ui.sidebar.agents]

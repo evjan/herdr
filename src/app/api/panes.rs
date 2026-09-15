@@ -6,8 +6,8 @@ use crate::api::schema::{
     PaneDirection, PaneEdgesParams, PaneEdgesResult, PaneFocusDirectionParams,
     PaneFocusDirectionReason, PaneFocusDirectionResult, PaneInfo, PaneInputSetParams,
     PaneLayoutPane, PaneLayoutParams, PaneLayoutRect, PaneLayoutSnapshot, PaneLayoutSplit,
-    PaneListParams, PaneMoveDestination, PaneMoveParams, PaneMoveReason, PaneMoveResult,
-    PaneNeighborParams, PaneNeighborResult, PaneProcessInfo, PaneProcessInfoParams,
+    PaneLinkActivateParams, PaneListParams, PaneMoveDestination, PaneMoveParams, PaneMoveReason,
+    PaneMoveResult, PaneNeighborParams, PaneNeighborResult, PaneProcessInfo, PaneProcessInfoParams,
     PaneProcessInfoProcess, PaneReadParams, PaneReadResult, PaneReleaseAgentParams,
     PaneRenameParams, PaneReportAgentParams, PaneReportAgentSessionParams,
     PaneReportMetadataParams, PaneResizeParams, PaneResizeReason, PaneResizeResult,
@@ -1876,7 +1876,7 @@ impl App {
             };
             ws.close_pane(pane_id)
         };
-        self.state.remove_plugin_pane_records([pane_id]);
+        self.state.forget_removed_panes([pane_id]);
         if should_close_workspace {
             self.state.selected = ws_idx;
             self.state.close_selected_workspace();
@@ -1936,6 +1936,101 @@ impl App {
         }
 
         encode_success(id, ResponseResult::Ok {})
+    }
+
+    fn read_checked_pane_link<T>(
+        &self,
+        id: &str,
+        params: &PaneLinkActivateParams,
+        operation: &str,
+        read: impl FnOnce(&crate::terminal::TerminalRuntime, u16, u16) -> T,
+    ) -> Result<(crate::layout::PaneId, T), String> {
+        let error = |code, message: &str| encode_error(id.to_owned(), code, message);
+        let Some((ws_idx, pane_id)) = self.parse_pane_id(&params.pane_id) else {
+            return Err(error("pane_not_found", "pane not found"));
+        };
+        if !self.state.pane_visible_on_active_surface(ws_idx, pane_id) {
+            return Err(error("stale_target", "pane is no longer visible"));
+        }
+        let Some(runtime) =
+            self.state
+                .runtime_for_pane_in_workspace(&self.terminal_runtimes, ws_idx, pane_id)
+        else {
+            return Err(error("pane_not_found", "pane runtime not found"));
+        };
+        let current_offset = runtime
+            .scroll_metrics()
+            .map(|metrics| metrics.offset_from_bottom as u64);
+        if params
+            .offset_from_bottom
+            .is_some_and(|expected| current_offset != Some(expected))
+        {
+            return Err(error(
+                "stale_content",
+                &format!("pane viewport changed before link {operation}"),
+            ));
+        }
+        let content_revision = runtime.content_seq();
+        if content_revision % 2 != 0
+            || params
+                .content_revision
+                .is_some_and(|expected| expected != content_revision)
+        {
+            return Err(error(
+                "stale_content",
+                &format!("pane content changed before link {operation}"),
+            ));
+        }
+        let value = read(runtime, params.col, params.viewport_row);
+        if runtime.content_seq() != content_revision
+            || runtime
+                .scroll_metrics()
+                .map(|metrics| metrics.offset_from_bottom as u64)
+                != current_offset
+        {
+            return Err(error(
+                "stale_content",
+                &format!("pane content or viewport changed during link {operation}"),
+            ));
+        }
+        Ok((pane_id, value))
+    }
+
+    pub(crate) fn handle_pane_link_resolve(
+        &mut self,
+        id: String,
+        params: PaneLinkActivateParams,
+    ) -> String {
+        match self.read_checked_pane_link(&id, &params, "resolution", |runtime, col, row| {
+            runtime.link_regions_at(col, row, crate::app::actions::url_byte_range)
+        }) {
+            Ok((_, regions)) => encode_success(id, ResponseResult::PaneLinkResolved { regions }),
+            Err(error) => error,
+        }
+    }
+
+    pub(crate) fn handle_pane_link_activate(
+        &mut self,
+        id: String,
+        params: PaneLinkActivateParams,
+    ) -> String {
+        let (pane_id, url) =
+            match self.read_checked_pane_link(&id, &params, "activation", |runtime, col, row| {
+                runtime
+                    .link_target_at(col, row)
+                    .and_then(crate::app::actions::url_from_link_target)
+            }) {
+                Ok(value) => value,
+                Err(error) => return error,
+            };
+        let _ = pane_id;
+        encode_success(
+            id,
+            ResponseResult::PaneLinkActivated {
+                url,
+                handled: false,
+            },
+        )
     }
 }
 

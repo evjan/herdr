@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 /// Long-lived pane runtime transferred during server replacement.
 ///
 /// Handoff preserves server-owned session state such as PTYs, processes, agent
-/// identity, and durable plugin/session metadata. It intentionally does not
+/// identity, and durable session metadata. It intentionally does not
 /// preserve transient coordination such as in-flight requests, waits,
 /// subscriptions, client sockets, or pane-to-pane messages; clients reconnect
 /// and retry those operations after replacement.

@@ -162,12 +162,12 @@ impl App {
             let terminal_ids = self
                 .state
                 .terminal_ids_for_tab(target_ws_idx, target_tab_idx);
-            let plugin_pane_ids = self.state.pane_ids_for_tab(target_ws_idx, target_tab_idx);
+            let removed_pane_ids = self.state.pane_ids_for_tab(target_ws_idx, target_tab_idx);
             let Some(ws) = self.state.workspaces.get_mut(target_ws_idx) else {
                 return encode_error(id, "tab_not_found", "tab not found");
             };
             if ws.close_tab(target_tab_idx) {
-                self.state.remove_plugin_pane_records(plugin_pane_ids);
+                self.state.forget_removed_panes(removed_pane_ids);
                 self.state.remove_unattached_terminal_ids(terminal_ids);
                 self.shutdown_detached_terminal_runtimes();
                 self.emit_event(EventEnvelope {
@@ -501,14 +501,14 @@ impl App {
             return;
         };
         let terminal_ids = self.state.terminal_ids_for_tab(ws_idx, tab_idx);
-        let plugin_pane_ids = self.state.pane_ids_for_tab(ws_idx, tab_idx);
+        let removed_pane_ids = self.state.pane_ids_for_tab(ws_idx, tab_idx);
         if self
             .state
             .workspaces
             .get_mut(ws_idx)
             .is_some_and(|ws| ws.close_tab(tab_idx))
         {
-            self.state.remove_plugin_pane_records(plugin_pane_ids);
+            self.state.forget_removed_panes(removed_pane_ids);
             self.state.remove_unattached_terminal_ids(terminal_ids);
             self.shutdown_detached_terminal_runtimes();
         }
@@ -837,17 +837,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn layout_apply_replace_drops_plugin_pane_records_of_replaced_tab() {
+    async fn layout_apply_replace_forgets_panes_of_replaced_tab() {
         let mut app = app_with_workspace();
         let original_tab_id = app.public_tab_id(0, 0).unwrap();
-        let replaced_pane = app.state.workspaces[0].tabs[0].root_pane;
-        app.state.plugin_panes.insert(
-            replaced_pane,
-            crate::app::state::PluginPaneRecord {
-                plugin_id: "example.layout".into(),
-                entrypoint: "board".into(),
-            },
-        );
 
         let response = app.handle_layout_apply(
             "req".into(),
@@ -867,7 +859,6 @@ mod tests {
 
         let success: SuccessResponse = serde_json::from_str(&response).unwrap();
         assert!(matches!(success.result, ResponseResult::LayoutApply { .. }));
-        assert!(!app.state.plugin_panes.contains_key(&replaced_pane));
         app.state.assert_invariants_for_test();
     }
 

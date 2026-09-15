@@ -45,8 +45,7 @@ pub(super) fn command() -> Command {
         .subcommand(pane_command())
         .subcommand(terminal_command())
         .subcommand(session_command())
-        .subcommand(integration_command())
-        .subcommand(plugin_command());
+        .subcommand(integration_command());
     configure_help(command, 0)
 }
 
@@ -765,118 +764,6 @@ fn integration_command() -> Command {
         )
 }
 
-fn plugin_command() -> Command {
-    Command::new("plugin")
-        .about("Install and run workflow plugins")
-        .subcommand(
-            Command::new("install")
-                .about("Install a plugin from GitHub")
-                .arg(required("source", "OWNER/REPO[/SUBDIR]"))
-                .arg(option("ref", "REF"))
-                .arg(
-                    Arg::new("yes")
-                        .short('y')
-                        .long("yes")
-                        .action(ArgAction::SetTrue),
-                ),
-        )
-        .subcommand(
-            Command::new("uninstall")
-                .about("Uninstall a plugin")
-                .arg(required("plugin", "PLUGIN")),
-        )
-        .subcommand(
-            Command::new("link")
-                .about("Link a local plugin")
-                .arg(path_arg("path", "PATH"))
-                .arg(flag("disabled"))
-                .arg(flag("enabled")),
-        )
-        .subcommand(
-            Command::new("unlink")
-                .about("Unlink a local plugin")
-                .arg(required("plugin_id", "PLUGIN_ID")),
-        )
-        .subcommand(
-            Command::new("enable")
-                .about("Enable a plugin")
-                .arg(required("plugin_id", "PLUGIN_ID")),
-        )
-        .subcommand(
-            Command::new("disable")
-                .about("Disable a plugin")
-                .arg(required("plugin_id", "PLUGIN_ID")),
-        )
-        .subcommand(
-            Command::new("list")
-                .about("List installed plugins")
-                .arg(option("plugin", "ID"))
-                .arg(json_flag()),
-        )
-        .subcommand(
-            Command::new("config-dir")
-                .about("Print a plugin config directory")
-                .arg(required("plugin_id", "PLUGIN_ID")),
-        )
-        .subcommand(
-            Command::new("action")
-                .about("List or invoke plugin actions")
-                .subcommand(
-                    Command::new("list")
-                        .about("List plugin actions")
-                        .arg(option("plugin", "ID")),
-                )
-                .subcommand(
-                    Command::new("invoke")
-                        .about("Invoke a plugin action")
-                        .arg(required("action_id", "ACTION_ID"))
-                        .arg(option("plugin", "ID")),
-                ),
-        )
-        .subcommand(
-            Command::new("log")
-                .about("Inspect plugin command logs")
-                .visible_alias("logs")
-                .subcommand(
-                    Command::new("list")
-                        .about("List plugin command logs")
-                        .arg(option("plugin", "ID"))
-                        .arg(option("limit", "N")),
-                ),
-        )
-        .subcommand(
-            Command::new("pane")
-                .about("Manage plugin-owned panes")
-                .subcommand(
-                    Command::new("open")
-                        .about("Open a plugin pane")
-                        .arg(option("plugin", "ID"))
-                        .arg(option("entrypoint", "ID"))
-                        .arg(
-                            option("placement", "PLACEMENT")
-                                .value_parser(["overlay", "split", "tab", "zoomed"]),
-                        )
-                        .arg(option("workspace", "ID"))
-                        .arg(option("target-pane", "PANE"))
-                        .arg(split_direction_option())
-                        .arg(path_option("cwd", "PATH"))
-                        .arg(env_option())
-                        .arg(flag("focus"))
-                        .arg(flag("no-focus")),
-                )
-                .subcommand(
-                    Command::new("focus")
-                        .about("Focus a plugin pane")
-                        .arg(required("pane_id", "PANE_ID")),
-                )
-                .subcommand(
-                    Command::new("close")
-                        .about("Close a plugin pane")
-                        .arg(required("pane_id", "PANE_ID")),
-                ),
-        )
-}
-
 fn current_pane_args() -> [Arg; 2] {
     [option("pane", "ID"), flag("current")]
 }
@@ -977,10 +864,6 @@ fn path_option(name: &'static str, value_name: &'static str) -> Arg {
 
 fn required(name: &'static str, value_name: &'static str) -> Arg {
     Arg::new(name).value_name(value_name).required(true)
-}
-
-fn path_arg(name: &'static str, value_name: &'static str) -> Arg {
-    required(name, value_name).value_hint(ValueHint::AnyPath)
 }
 
 #[cfg(test)]
@@ -1218,16 +1101,6 @@ mod tests {
                 "herdr worktree {subcommand} should not advertise --json"
             );
         }
-    }
-
-    #[test]
-    fn spec_includes_nested_plugin_pane_open_options() {
-        let cmd = super::command();
-        let open = command_path(&cmd, &["plugin", "pane", "open"]);
-        assert!(open
-            .get_arguments()
-            .any(|arg| arg.get_long() == Some("entrypoint")));
-        assert!(option_values(open, "placement").contains(&"zoomed".to_string()));
     }
 
     #[test]

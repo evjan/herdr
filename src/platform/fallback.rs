@@ -4,15 +4,6 @@ use std::process::Command;
 use super::{ClipboardImage, ForegroundJob, Signal};
 
 #[cfg(unix)]
-pub(crate) use super::unix_common::set_default_plugin_pane_pwd;
-
-#[cfg(not(unix))]
-pub(crate) fn set_default_plugin_pane_pwd(
-    _env: &mut Vec<(String, String)>,
-    _cwd: &std::path::Path,
-) {
-}
-
 #[cfg(unix)]
 pub(super) const REMOTE_BRIDGE_CLOCK: libc::clockid_t = libc::CLOCK_MONOTONIC;
 

@@ -6,14 +6,6 @@ use ratatui::style::Color;
 use crate::detect::AgentState;
 use crate::layout::{PaneId, PaneInfo};
 
-pub(crate) type InstalledPluginRegistry =
-    std::collections::HashMap<String, crate::api::schema::InstalledPluginInfo>;
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct PluginPaneRecord {
-    pub plugin_id: String,
-    pub entrypoint: String,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct PopupPaneState {
     pub pane_id: PaneId,
@@ -866,17 +858,8 @@ pub struct AppState {
     /// Cached integration recommendations and detection manifest summaries.
     pub integration_recommendations: Vec<crate::integration::IntegrationRecommendation>,
     pub agent_manifest_summaries: Vec<crate::detect::manifest::AgentManifestSummary>,
-    /// Cached remote detection manifest update diagnostics for runtime/API status.
-    /// Installed or linked plugins known to this running Herdr instance.
-    pub(crate) installed_plugins: InstalledPluginRegistry,
-    /// Pane ids opened through the plugin pane API.
-    pub(crate) plugin_panes: std::collections::HashMap<PaneId, PluginPaneRecord>,
     /// Session-modal terminal popup. This is intentionally outside workspace layouts.
     pub(crate) popup_pane: Option<PopupPaneState>,
-    /// Recent plugin action/event command executions.
-    pub(crate) plugin_command_logs: Vec<crate::api::schema::PluginCommandLogInfo>,
-    pub(crate) next_plugin_command_log_id: u64,
-    pub(crate) plugin_commands_in_flight: usize,
     /// Resolved host terminal default colors for theming embedded panes.
     pub host_terminal_theme: TerminalTheme,
     /// Last known foreground host terminal cell size in pixels.
@@ -1087,12 +1070,7 @@ impl AppState {
             host_terminal_appearance_explicit: false,
             integration_recommendations: Vec::new(),
             agent_manifest_summaries: Vec::new(),
-            installed_plugins: std::collections::HashMap::new(),
-            plugin_panes: std::collections::HashMap::new(),
             popup_pane: None,
-            plugin_command_logs: Vec::new(),
-            next_plugin_command_log_id: 1,
-            plugin_commands_in_flight: 0,
             host_terminal_theme: TerminalTheme::default(),
             host_cell_size: crate::kitty_graphics::HostCellSize::default(),
             session_dirty: false,
@@ -1150,10 +1128,6 @@ impl AppState {
             assert!(
                 self.previous_pane_focus.is_none(),
                 "empty app state must not keep previous pane focus"
-            );
-            assert!(
-                self.plugin_panes.is_empty(),
-                "empty app state must not keep plugin pane records"
             );
             assert!(
                 self.pending_agent_notifications.is_empty(),
@@ -1276,9 +1250,6 @@ impl AppState {
                 "popup terminal {} must not be attached to a tiled pane",
                 popup.terminal_id
             );
-        }
-        for &pane_id in self.plugin_panes.keys() {
-            assert_live_pane(pane_id, "plugin pane record");
         }
     }
 
