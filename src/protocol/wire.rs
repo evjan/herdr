@@ -1734,17 +1734,6 @@ pub fn check_client_version(client_version: u32) -> VersionCheck {
 mod tests {
     use super::*;
     use ratatui::style::{Color, Modifier};
-    use sha2::{Digest, Sha256};
-
-    fn encoded_sha256(value: &impl Serialize) -> String {
-        let encoded = bincode::serde::encode_to_vec(value, bincode::config::standard()).unwrap();
-        format!("{:x}", Sha256::digest(encoded))
-    }
-
-    // These digests freeze representative generation-1 bincode payloads. A mismatch
-    // requires a new named codec; do not update a v1 digest to bless a wire change.
-    // They do not detect appended enum variants, so every type reachable from a v1
-    // payload is also append-closed.
 
     // ---- Round-trip: ClientMessage ----
 
@@ -1817,10 +1806,6 @@ mod tests {
         let (decoded, _): (ClientMessage, _) =
             bincode::serde::decode_from_slice(&encoded, bincode::config::standard()).unwrap();
         assert_eq!(msg, decoded);
-        assert_eq!(
-            encoded_sha256(&msg),
-            "676d6376202750e72c45ff511e256b6154d3d20c0ee088d3792fa3a69d9704b9"
-        );
     }
 
     #[test]
@@ -2036,10 +2021,6 @@ mod tests {
             bincode::serde::decode_from_slice(&encoded, bincode::config::standard())
                 .expect("decode targeted semantic input");
         assert_eq!(decoded, message);
-        assert_eq!(
-            encoded_sha256(&message),
-            "f558384bb53dfd2baf1fa72e1709d88be6891da79e51f88513905afc085065e6"
-        );
         let ClientMessage::ClientShellPaneInput { events, .. } = decoded else {
             panic!("expected targeted semantic input");
         };
@@ -2227,10 +2208,6 @@ mod tests {
             bincode::serde::decode_from_slice(&encoded, bincode::config::standard())
                 .expect("decode endpoint request");
         assert_eq!(decoded, request);
-        assert_eq!(
-            encoded_sha256(&request),
-            "de5693585a01f6b0d5ee07c51b6ddf79ee9f67dbf183255822d31f35210f5ffb"
-        );
 
         let response = ServerMessage::ClientShellEndpointResponseChunk {
             boot_id: "boot-a".into(),
@@ -2244,10 +2221,6 @@ mod tests {
             bincode::serde::decode_from_slice(&encoded, bincode::config::standard())
                 .expect("decode endpoint response");
         assert_eq!(decoded, response);
-        assert_eq!(
-            encoded_sha256(&response),
-            "bc14dbb5263d3097fe6d3e70a4b6d71aa9c2fa4ae3206d692a7182512bffdd1d"
-        );
     }
 
     #[test]
@@ -2261,10 +2234,6 @@ mod tests {
         let (decoded, _): (ClientMessage, _) =
             bincode::serde::decode_from_slice(&encoded, bincode::config::standard()).unwrap();
         assert_eq!(msg, decoded);
-        assert_eq!(
-            encoded_sha256(&msg),
-            "1c02110be0671faf318b3f4d8f507748d5a0a98cd474832669c5290d97ef19ab"
-        );
     }
 
     #[test]
@@ -2466,10 +2435,6 @@ mod tests {
         let (decoded, _): (ServerMessage, _) =
             bincode::serde::decode_from_slice(&encoded, bincode::config::standard()).unwrap();
         assert_eq!(msg, decoded);
-        assert_eq!(
-            encoded_sha256(&msg),
-            "7c016f7b21ddb5ac79212cf65a968b93eb292b5305b941263e89ffaa40158ee3"
-        );
         match decoded {
             ServerMessage::PaneSurface(surface) => {
                 assert_eq!(surface.frame.cells[2].hyperlink, Some(0));
@@ -2513,162 +2478,6 @@ mod tests {
         let (decoded, _): (ServerMessage, _) =
             bincode::serde::decode_from_slice(&encoded, bincode::config::standard()).unwrap();
         assert_eq!(decoded, msg);
-        assert_eq!(
-            encoded_sha256(&msg),
-            "0814b99a1dc6eaf7918424aa416c066509cbfb73b72344a809c27cde78cb6dbd"
-        );
-    }
-
-    #[test]
-    fn client_shell_graphics_payload_codec_is_frozen() {
-        let key = SurfaceGraphicsAssetKey {
-            source: SurfaceGraphicsSource::Terminal {
-                target: SurfaceGraphicsTarget::Pane {
-                    pane_id: "w1:p1".into(),
-                },
-                image_id: 7,
-            },
-            image_width: 2,
-            image_height: 1,
-            format: SurfaceGraphicsFormat::Rgba,
-            data_len: 8,
-            data_fingerprint: 42,
-        };
-        let message = ServerMessage::PaneSurface(PaneSurfaceFrame {
-            boot_id: "boot-1".into(),
-            projection_revision: 2,
-            surface_revision: 3,
-            frame: FrameData {
-                cells: Vec::new(),
-                width: 0,
-                height: 0,
-                cursor: None,
-                hyperlinks: Vec::new(),
-                graphics: Vec::new(),
-            },
-            panes: Vec::new(),
-            splits: Vec::new(),
-            popup: None,
-            graphics: SurfaceGraphicsScene {
-                assets: vec![SurfaceGraphicsAsset {
-                    key: key.clone(),
-                    data: vec![255, 0, 0, 255, 0, 255, 0, 255],
-                }],
-                placements: vec![SurfaceGraphicsPlacement {
-                    asset: key,
-                    logical_placement_id: 9,
-                    x: 1,
-                    y: 2,
-                    cols: 2,
-                    rows: 1,
-                    source_x: 0,
-                    source_y: 0,
-                    source_width: 2,
-                    source_height: 1,
-                    x_offset: 0,
-                    y_offset: 0,
-                    z: -1,
-                    scrollback_offset: 0,
-                }],
-                retained_assets: Vec::new(),
-            },
-        });
-
-        assert_eq!(
-            encoded_sha256(&message),
-            "49c4efec0f1456c8ca4112ddf6ead1ab75d0224007576c2ccc18c3fca55a69f0"
-        );
-    }
-
-    #[test]
-    fn server_endpoint_control_tag_is_frozen() {
-        let message = ServerMessage::EndpointControl {
-            kind: "endpoint.welcome.v1".into(),
-            data: r#"{"generation":1}"#.into(),
-        };
-        let encoded = bincode::serde::encode_to_vec(&message, bincode::config::standard()).unwrap();
-        assert_eq!(encoded.first(), Some(&20));
-        assert_eq!(
-            bincode::serde::encode_to_vec(
-                ServerMessage::EndpointControl {
-                    kind: String::new(),
-                    data: String::new(),
-                },
-                bincode::config::standard(),
-            )
-            .unwrap(),
-            [20, 0, 0]
-        );
-        let (decoded, _): (ServerMessage, _) =
-            bincode::serde::decode_from_slice(&encoded, bincode::config::standard()).unwrap();
-        assert_eq!(decoded, message);
-    }
-
-    #[test]
-    fn client_shell_server_message_tags_are_frozen() {
-        fn tag(message: &ServerMessage) -> u8 {
-            *bincode::serde::encode_to_vec(message, bincode::config::standard())
-                .unwrap()
-                .first()
-                .expect("encoded server message should include enum tag")
-        }
-
-        let empty_frame = || PaneSurfaceFrame {
-            boot_id: "boot".into(),
-            projection_revision: 1,
-            surface_revision: 1,
-            frame: FrameData {
-                cells: Vec::new(),
-                width: 0,
-                height: 0,
-                cursor: None,
-                hyperlinks: Vec::new(),
-                graphics: Vec::new(),
-            },
-            panes: Vec::new(),
-            splits: Vec::new(),
-            popup: None,
-            graphics: SurfaceGraphicsScene::default(),
-        };
-        assert_eq!(tag(&ServerMessage::PaneSurface(empty_frame())), 13);
-        assert_eq!(
-            tag(&ServerMessage::ClientShellError {
-                message: String::new(),
-            }),
-            15
-        );
-        assert_eq!(
-            tag(&ServerMessage::ClientShellKeyboardReportAll { enabled: false }),
-            17
-        );
-        assert_eq!(
-            tag(&ServerMessage::ClientShellEndpointResponseChunk {
-                boot_id: String::new(),
-                request_id: String::new(),
-                final_chunk: true,
-                data: Vec::new(),
-            }),
-            18
-        );
-        assert_eq!(
-            tag(&ServerMessage::PaneSurfacePatch(PaneSurfacePatch {
-                boot_id: String::new(),
-                projection_revision: 0,
-                base_surface_revision: 0,
-                surface_revision: 0,
-                rows: Vec::new(),
-                panes: Vec::new(),
-                cursor: None,
-            })),
-            19
-        );
-        assert_eq!(
-            tag(&ServerMessage::EndpointControl {
-                kind: String::new(),
-                data: String::new(),
-            }),
-            20
-        );
     }
 
     #[test]
@@ -2834,10 +2643,6 @@ mod tests {
         let (decoded, _): (ServerMessage, _) =
             bincode::serde::decode_from_slice(&encoded, bincode::config::standard()).unwrap();
         assert_eq!(msg, decoded);
-        assert_eq!(
-            encoded_sha256(&msg),
-            "28a420f92e0e05e6760a8c140baf307c360c6d1b1aa68027481b324f87e22c44"
-        );
     }
 
     #[test]

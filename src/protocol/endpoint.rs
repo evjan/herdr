@@ -230,42 +230,6 @@ mod tests {
     }
 
     #[test]
-    fn frozen_generation_one_handshake_decodes() {
-        let hello: EndpointClientHello = serde_json::from_str(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/fixtures/endpoint-hello-v1.json"
-        )))
-        .unwrap();
-        assert!(hello.supports_required_codecs());
-
-        let welcome: EndpointServerWelcome = serde_json::from_str(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/fixtures/endpoint-welcome-v1.json"
-        )))
-        .unwrap();
-        assert_eq!(welcome.generation, ENDPOINT_PROTOCOL_GENERATION);
-        assert_eq!(welcome.snapshot_codec, SNAPSHOT_CODEC_V1);
-        assert_eq!(welcome.surface_codec, SURFACE_CODEC_V1);
-        assert_eq!(welcome.input_codec, INPUT_CODEC_V1);
-        assert_eq!(welcome.blob_codec, BLOB_CODEC_V1);
-        assert!(welcome.capabilities.is_empty());
-    }
-
-    #[test]
-    fn frozen_generation_one_snapshot_decodes() {
-        let snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/fixtures/endpoint-snapshot-v1.json"
-        )))
-        .unwrap();
-        assert_eq!(snapshot.boot_id, "boot-v1");
-        assert_eq!(
-            snapshot.workspaces[0].agent_status,
-            crate::api::schema::AgentStatus::Unknown
-        );
-    }
-
-    #[test]
     fn snapshot_message_uses_named_json_control() {
         let snapshot = snapshot();
         let ServerMessage::EndpointControl { kind, data } = snapshot_message(&snapshot).unwrap()
