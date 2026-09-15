@@ -93,16 +93,6 @@ impl RawInputFramer {
         self.byte_framer.has_pending_input()
     }
 
-    #[cfg(any(windows, test))]
-    pub(crate) fn has_pending_bracketed_paste(&self) -> bool {
-        self.byte_framer.has_pending_bracketed_paste()
-    }
-
-    #[cfg(any(windows, test))]
-    pub(crate) fn has_pending_default_mouse_sequence(&self) -> bool {
-        starts_with_incomplete_default_mouse_sequence(&self.byte_framer.buffer)
-    }
-
     pub(crate) fn flush_timeout(&mut self) -> Vec<RawInputEvent> {
         Self::events_from_chunks(self.byte_framer.flush_timeout())
     }
@@ -227,12 +217,6 @@ impl RawInputByteFramer {
     pub(crate) fn has_pending_incomplete_mouse_sequence(&self) -> bool {
         starts_with_incomplete_sgr_mouse_sequence(&self.buffer)
             || starts_with_incomplete_default_mouse_sequence(&self.buffer)
-    }
-
-    #[cfg(any(windows, test))]
-    pub(crate) fn has_pending_bracketed_paste(&self) -> bool {
-        self.buffer.starts_with(BRACKETED_PASTE_START)
-            && find_subsequence(&self.buffer, BRACKETED_PASTE_END).is_none()
     }
 
     pub(crate) fn flush_timeout(&mut self) -> Vec<Vec<u8>> {

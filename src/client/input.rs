@@ -23,9 +23,6 @@ use tokio::sync::mpsc;
 
 use super::ClientLoopEvent;
 
-#[cfg(any(windows, test))]
-mod windows_vti;
-
 // ---------------------------------------------------------------------------
 // Stdin reader thread
 // ---------------------------------------------------------------------------

@@ -1,7 +1,6 @@
 # herdr task runner
-set windows-shell := ["cmd.exe", "/d", "/s", "/c"]
 
-python := if os() == "windows" { "python" } else { "python3" }
+python := "python3"
 
 # Run tests
 test:
@@ -13,7 +12,7 @@ test:
 
 # Run repository maintenance contract tests
 maintenance-test:
-    {{python}} -m unittest scripts.test_agent_detection_manifest_check scripts.test_changelog scripts.test_config_reference_check scripts.test_docs_translation_parity scripts.test_hermes_integration_asset scripts.test_package_windows_conpty scripts.test_preview scripts.test_unix_installer scripts.test_vendor_libghostty_vt scripts.test_vendor_portable_pty scripts.test_windows_cross
+    {{python}} -m unittest scripts.test_agent_detection_manifest_check scripts.test_changelog scripts.test_config_reference_check scripts.test_docs_translation_parity scripts.test_hermes_integration_asset scripts.test_preview scripts.test_unix_installer scripts.test_vendor_libghostty_vt scripts.test_vendor_portable_pty
 
 # Run one nextest filter, e.g. `just test-one codex_stale_working`
 test-one filter:
@@ -24,15 +23,10 @@ ui-hot-path-architecture-test:
     {{python}} -m unittest scripts.test_ui_hot_path_architecture
 
 # Run fast local lint checks
-[unix]
 lint:
     cargo fmt --check
     cargo clippy --all-targets --locked -- -D warnings
 
-[script("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File")]
-[windows]
-lint:
-    & .\scripts\windows_check.ps1 -Mode lint
 
 # Run PR CI checks
 ci filter='all()': lint
@@ -45,26 +39,12 @@ ci-tests filter='all()':
     just ui-hot-path-architecture-test
     just integration-assets-test
 
-# Download the Windows SDK once (requires xwin; prompts for Microsoft's SDK license)
-[unix]
-setup-windows-cross *args:
-    {{python}} scripts/windows_cross.py setup {{args}}
 
-# Run Windows target lint from Unix/macOS to catch cfg(windows) compile and clippy failures before CI
-[unix]
-windows-lint:
-    {{python}} scripts/windows_cross.py lint
 
-# Check formatting + run unit tests + Windows target lint + documentation contract tests
-[unix]
-check: ci windows-lint
+# Check formatting + run unit tests + documentation contract tests
+check: ci
     just docs-contract-test
     @echo "docs reminder: if this changes user-facing behavior, make sure the relevant release docs are updated or called out before release."
-
-[script("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File")]
-[windows]
-check:
-    & .\scripts\windows_check.ps1 -Mode check
 
 # Install repo-local git hooks
 install-hooks:
