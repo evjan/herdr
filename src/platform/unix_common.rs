@@ -138,10 +138,6 @@ pub(crate) fn begin_cli_output() {
     set_sigpipe_disposition(libc::SIG_DFL);
 }
 
-pub(crate) fn end_cli_output() {
-    set_sigpipe_disposition(libc::SIG_IGN);
-}
-
 /// The machine's node name, as shown by tmux's `#h`.
 pub(crate) fn hostname() -> Option<String> {
     let mut buffer = [0_u8; 256];

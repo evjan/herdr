@@ -13,11 +13,7 @@ Most commands print JSON responses for deterministic automation in scripts.
 herdr                         # launch or attach to the default session
 herdr --remote workbox        # attach through SSH, using local keybindings
 herdr --default-config        # print default config
-herdr update                  # download and install from the configured channel
 herdr completion zsh          # generate a zsh completion script
-herdr channel show            # print stable or preview
-herdr channel set preview     # opt into preview builds
-herdr channel set stable      # return a direct install to stable
 herdr --version               # print version
 ```
 
@@ -25,7 +21,6 @@ Optional launch and update settings:
 
 - Add `--session <name>` to use a named session instead of the default.
 - Add `--remote-keybindings server` to remote attach to use server keybindings instead of local ones.
-- Experimental live handoff requires explicit `--handoff` on `herdr --remote` or `herdr update`. It is not the normal setup or connection path; see [Updates](/docs/install/#update).
 
 Status commands:
 

@@ -30,15 +30,12 @@ mod window_title;
 mod worktrees;
 
 use std::collections::HashMap;
-#[cfg(unix)]
-use std::io;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 const MIN_RENDER_INTERVAL: Duration = Duration::from_millis(16);
 const GIT_REMOTE_STATUS_REFRESH_INTERVAL: Duration = Duration::from_millis(1500);
 const GIT_REPO_DISCOVERY_REFRESH_INTERVAL: Duration = Duration::from_secs(5 * 60);
-const AUTO_UPDATE_CHECK_INTERVAL: Duration = Duration::from_secs(30 * 60);
 const PENDING_AGENT_RESUME_THEME_WAIT: Duration = Duration::from_millis(750);
 const SESSION_SAVE_DEBOUNCE: Duration = Duration::from_secs(5);
 
@@ -81,13 +78,6 @@ impl AppPolicy {
         persist_session: false,
         background_updates: false,
     };
-
-    #[cfg(unix)]
-    pub(crate) const HANDOFF_REPLACEMENT: Self = Self {
-        restore_session: false,
-        persist_session: true,
-        background_updates: true,
-    };
 }
 
 pub struct App {
@@ -118,8 +108,6 @@ pub struct App {
     pub(crate) pending_worktree_remove_runtime_exits: HashMap<crate::layout::PaneId, usize>,
     pub(crate) pending_worktree_remove_runtime_restores: HashMap<crate::layout::PaneId, u64>,
     pub(crate) next_api_worktree_operation_id: u64,
-    pub(crate) next_auto_update_check: Option<Instant>,
-    pub(crate) update_version_check_enabled: bool,
     pub(crate) loaded_host_cursor: crate::config::HostCursorModeConfig,
     pub(crate) agent_metadata_deadline: Option<Instant>,
     pub(crate) pending_agent_resume_deadline: Option<Instant>,
@@ -149,14 +137,6 @@ pub struct App {
 
 pub(crate) const APP_EVENT_CHANNEL_CAPACITY: usize = 256;
 pub(crate) const APP_EVENT_DRAIN_LIMIT: usize = 64;
-
-fn auto_updates_enabled(background_updates: bool) -> bool {
-    background_updates && !cfg!(debug_assertions)
-}
-
-fn background_update_check_enabled(background_updates: bool, check_enabled: bool) -> bool {
-    auto_updates_enabled(background_updates) && check_enabled
-}
 
 fn agent_panel_sort_from_config(
     sort: crate::config::AgentPanelSortConfig,
@@ -387,16 +367,6 @@ impl App {
             "using pane scrollback configuration"
         );
 
-        let latest_release_notes = crate::release_notes::load_latest();
-        let update_available = latest_release_notes
-            .as_ref()
-            .filter(|notes| notes.preview)
-            .map(|notes| notes.version.clone());
-        let latest_release_notes_available = latest_release_notes.is_some();
-        let update_install_command = crate::update::update_install_command().to_string();
-        let startup_product_announcement =
-            crate::product_announcements::load_unseen_for_current_version();
-
         let mode = if active.is_some() {
             state::Mode::Terminal
         } else {
@@ -425,25 +395,10 @@ impl App {
             should_quit: false,
             request_client_config_reload: false,
             worktree_directory,
-            latest_release_notes,
-            product_announcement: startup_product_announcement.map(|announcement| {
-                state::ProductAnnouncementState {
-                    version: announcement.version,
-                    id: announcement.id,
-                    title: announcement.title,
-                    body: announcement.body,
-                    scroll: 0,
-                    preview: announcement.preview,
-                }
-            }),
             view: state::ViewState {
                 terminal_area: Rect::default(),
                 pane_infos: Vec::new(),
             },
-            update_available,
-            update_install_command,
-            latest_release_notes_available,
-            update_dismissed: false,
             config_diagnostic,
             toast: None,
             pending_agent_notifications: std::collections::HashMap::new(),
@@ -498,16 +453,6 @@ impl App {
                 cwd.as_deref().and_then(crate::workspace::git_branch);
         }
 
-        // Background auto-update is disabled for non-persistent test apps
-        // and in debug/test builds so local development never mutates the
-        // running binary out from under spawned test processes.
-        let version_check_enabled =
-            background_update_check_enabled(policy.background_updates, config.update.version_check);
-        if version_check_enabled {
-            let update_tx = event_tx.clone();
-            std::thread::spawn(move || crate::update::auto_update(update_tx));
-        }
-
         let last_focus = state.active.and_then(|idx| {
             state
                 .workspaces
@@ -542,9 +487,6 @@ impl App {
             pending_worktree_remove_runtime_exits: HashMap::new(),
             pending_worktree_remove_runtime_restores: HashMap::new(),
             next_api_worktree_operation_id: 1,
-            next_auto_update_check: version_check_enabled
-                .then_some(Instant::now() + AUTO_UPDATE_CHECK_INTERVAL),
-            update_version_check_enabled: config.update.version_check,
             loaded_host_cursor: config.ui.host_cursor,
             agent_metadata_deadline: None,
             pending_agent_resume_deadline: None,
@@ -577,71 +519,6 @@ impl App {
         app
     }
 
-    #[cfg(unix)]
-    pub fn new_from_handoff(
-        config: &Config,
-        config_diagnostic: Option<String>,
-        api_rx: tokio::sync::mpsc::UnboundedReceiver<crate::api::ApiRequestMessage>,
-        event_hub: crate::api::EventHub,
-        snapshot: &crate::persist::SessionSnapshot,
-        imports: &mut std::collections::HashMap<
-            u32,
-            crate::handoff_runtime::ImportedHandoffRuntime,
-        >,
-    ) -> io::Result<Self> {
-        let mut app = Self::new(
-            config,
-            AppPolicy::HANDOFF_REPLACEMENT,
-            config_diagnostic,
-            api_rx,
-            event_hub,
-        );
-        let (workspaces, terminals, runtimes) = crate::persist::restore_handoff(
-            snapshot,
-            config.advanced.scrollback_limit_bytes,
-            &config.terminal.default_shell,
-            config.terminal.shell_mode,
-            imports,
-            app.event_tx.clone(),
-            app.render_notify.clone(),
-            app.render_dirty.clone(),
-        )?;
-        let pane_id_aliases = crate::persist::handoff_pane_aliases(snapshot, &workspaces);
-
-        app.state.pane_id_aliases = pane_id_aliases;
-        app.state.workspaces = workspaces;
-        app.state.terminals = terminals;
-        app.terminal_runtimes = runtimes.into();
-        app.state.active = snapshot
-            .active
-            .filter(|&idx| idx < app.state.workspaces.len());
-        app.state.selected = snapshot
-            .selected
-            .min(app.state.workspaces.len().saturating_sub(1));
-        app.state.mode = if app.state.active.is_some() {
-            state::Mode::Terminal
-        } else {
-            state::Mode::Navigate
-        };
-        app.last_focus = app.state.active.and_then(|idx| {
-            app.state
-                .workspaces
-                .get(idx)
-                .and_then(|ws| ws.focused_pane_id().map(|pane_id| (idx, pane_id)))
-        });
-        Ok(app)
-    }
-
-    #[cfg(unix)]
-    pub fn unpause_handoff_readers(&self) {
-        self.terminal_runtimes.set_handoff_readers_paused(false);
-    }
-
-    #[cfg(unix)]
-    pub fn assume_handoff_ownership(&mut self) {
-        self.terminal_runtimes.assume_handoff_ownership();
-    }
-
     pub(crate) fn ensure_default_workspace(&mut self) -> bool {
         if !self.state.workspaces.is_empty() {
             return false;
@@ -663,30 +540,6 @@ impl App {
                 tracing::error!(err = %err, "failed to create default workspace");
                 self.state.mode = Mode::Navigate;
                 false
-            }
-        }
-    }
-
-    fn mark_release_notes_seen(&mut self, preview: bool) {
-        if !preview {
-            if let Err(err) = crate::release_notes::mark_current_version_seen() {
-                self.state.config_diagnostic =
-                    Some(format!("failed to update release notes status: {err}"));
-                self.config_diagnostic_deadline = Some(Instant::now() + Duration::from_secs(5));
-            }
-        }
-    }
-
-    pub(crate) fn dismiss_product_announcement(&mut self) {
-        if let Some(announcement) = self.state.product_announcement.take() {
-            if !announcement.preview {
-                if let Err(err) =
-                    crate::product_announcements::mark_seen(&announcement.version, &announcement.id)
-                {
-                    self.state.config_diagnostic =
-                        Some(format!("failed to update announcement status: {err}"));
-                    self.config_diagnostic_deadline = Some(Instant::now() + Duration::from_secs(5));
-                }
             }
         }
     }
@@ -839,24 +692,6 @@ impl App {
             self.state.pane_scrollback_limit_bytes = config.advanced.scrollback_limit_bytes;
         }
 
-        if !invalid_section("update") {
-            let now = Instant::now();
-            let previous_version_check_enabled = self.update_version_check_enabled;
-            self.update_version_check_enabled = config.update.version_check;
-
-            if !self.update_version_check_enabled {
-                self.next_auto_update_check = None;
-            } else if !previous_version_check_enabled
-                && background_update_check_enabled(
-                    self.policy.background_updates,
-                    self.update_version_check_enabled,
-                )
-                && self.state.update_available.is_none()
-            {
-                self.next_auto_update_check = Some(now);
-            }
-        }
-
         if !invalid_section("terminal") {
             self.state.default_shell = config.terminal.default_shell.clone();
             self.state.shell_mode = config.terminal.shell_mode;
@@ -916,7 +751,7 @@ impl App {
 mod tests {
     use super::*;
     use crate::config::Config;
-    use crate::detect::{Agent, AgentState};
+
     use crate::workspace::Workspace;
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
     use std::sync::Mutex;
@@ -956,14 +791,6 @@ mod tests {
                 .as_nanos()
         );
         std::env::temp_dir().join(unique).join("config.toml")
-    }
-
-    fn restore_xdg_state_home(original: Option<std::ffi::OsString>) {
-        if let Some(value) = original {
-            std::env::set_var("XDG_STATE_HOME", value);
-        } else {
-            std::env::remove_var("XDG_STATE_HOME");
-        }
     }
 
     #[test]
@@ -1207,57 +1034,6 @@ mod tests {
     }
 
     #[test]
-    fn internal_event_drain_limits_work_per_tick() {
-        let mut app = test_app();
-        for i in 0..=APP_EVENT_DRAIN_LIMIT {
-            app.event_tx
-                .try_send(AppEvent::UpdateReady {
-                    version: format!("2.0.{i}"),
-                    install_command: "herdr install".into(),
-                })
-                .unwrap();
-        }
-
-        assert!(app.drain_internal_events());
-
-        let expected_version = format!("2.0.{}", APP_EVENT_DRAIN_LIMIT - 1);
-        assert_eq!(
-            app.state.update_available.as_deref(),
-            Some(expected_version.as_str())
-        );
-        assert!(app.event_rx.try_recv().is_ok());
-    }
-
-    #[test]
-    fn api_request_drains_all_pending_internal_events_before_reading_state() {
-        let mut app = test_app();
-        for i in 0..=APP_EVENT_DRAIN_LIMIT {
-            app.event_tx
-                .try_send(AppEvent::UpdateReady {
-                    version: format!("3.0.{i}"),
-                    install_command: "herdr install".into(),
-                })
-                .unwrap();
-        }
-
-        let response = app.handle_api_request(crate::api::schema::Request {
-            id: "req_server_stop_after_events".into(),
-            method: crate::api::schema::Method::ServerStop(
-                crate::api::schema::EmptyParams::default(),
-            ),
-        });
-        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
-
-        assert_eq!(response["result"]["type"], "ok");
-        let expected_version = format!("3.0.{APP_EVENT_DRAIN_LIMIT}");
-        assert_eq!(
-            app.state.update_available.as_deref(),
-            Some(expected_version.as_str())
-        );
-        assert!(app.event_rx.try_recv().is_err());
-    }
-
-    #[test]
     fn startup_uses_configured_agent_panel_sort() {
         let mut config = Config::default();
         config.ui.agent_panel_sort = crate::config::AgentPanelSortConfig::Priority;
@@ -1417,194 +1193,6 @@ mod tests {
     }
 
     #[test]
-    fn startup_restores_preview_update_available_from_saved_notes() {
-        let _guard = config_env_lock().lock().unwrap();
-        let path = temp_config_path("startup-preview-update-available");
-        std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, &path);
-
-        // Use a bogus far-future version so preview=true regardless of current binary version.
-        crate::release_notes::save_pending("99.99.99", "### Changed\n- One").unwrap();
-
-        let app = test_app();
-
-        assert_eq!(app.state.update_available.as_deref(), Some("99.99.99"));
-        assert!(app.state.latest_release_notes_available);
-        assert_eq!(
-            app.state
-                .latest_release_notes
-                .as_ref()
-                .map(|notes| notes.version.as_str()),
-            Some("99.99.99")
-        );
-
-        std::env::remove_var(crate::config::CONFIG_PATH_ENV_VAR);
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
-    }
-
-    #[test]
-    fn update_ready_refreshes_cached_release_notes() {
-        let _guard = config_env_lock().lock().unwrap();
-        let path = temp_config_path("update-ready-refreshes-release-notes");
-        std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, &path);
-        let mut app = test_app();
-        assert!(app.state.latest_release_notes.is_none());
-
-        crate::release_notes::save_pending("99.99.99", "### Changed\n- One").unwrap();
-        app.handle_internal_event(AppEvent::UpdateReady {
-            version: "99.99.99".into(),
-            install_command: "herdr update".into(),
-        });
-
-        assert_eq!(
-            app.state.latest_release_notes.as_ref().map(|notes| (
-                notes.version.as_str(),
-                notes.body.as_str(),
-                notes.preview
-            )),
-            Some(("99.99.99", "### Changed\n- One", true))
-        );
-
-        std::env::remove_var(crate::config::CONFIG_PATH_ENV_VAR);
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
-    }
-
-    #[test]
-    fn release_notes_dismiss_api_marks_current_seen_but_keeps_preview_unseen() {
-        let _guard = config_env_lock().lock().unwrap();
-        let path = temp_config_path("release-notes-dismiss-persistence");
-        std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, &path);
-
-        let dismiss = |app: &mut App, version: &str| {
-            let response = app.handle_api_request(crate::api::schema::Request {
-                id: format!("dismiss-{version}"),
-                method: crate::api::schema::Method::ReleaseNotesDismiss(
-                    crate::api::schema::ReleaseNotesDismissParams {
-                        version: version.to_owned(),
-                    },
-                ),
-            });
-            let response: serde_json::Value = serde_json::from_str(&response).unwrap();
-            assert_eq!(response["result"]["type"], "ok");
-        };
-        let show_on_startup = || {
-            let stored: serde_json::Value = serde_json::from_str(
-                &std::fs::read_to_string(crate::release_notes::pending_path()).unwrap(),
-            )
-            .unwrap();
-            stored["show_on_startup"].as_bool()
-        };
-
-        let current = env!("CARGO_PKG_VERSION");
-        crate::release_notes::save_pending(current, "### Changed\n- Current").unwrap();
-        let mut app = test_app();
-        dismiss(&mut app, current);
-        assert_eq!(show_on_startup(), Some(false));
-
-        crate::release_notes::save_pending("99.99.99", "### Changed\n- Preview").unwrap();
-        let mut app = test_app();
-        dismiss(&mut app, "99.99.99");
-        assert_eq!(show_on_startup(), Some(true));
-
-        std::env::remove_var(crate::config::CONFIG_PATH_ENV_VAR);
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
-    }
-
-    #[test]
-    fn startup_does_not_restore_update_available_from_older_saved_notes() {
-        let _guard = config_env_lock().lock().unwrap();
-        let path = temp_config_path("startup-stale-update-notes");
-        std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, &path);
-
-        crate::release_notes::save_pending("0.4.9", "### Changed\n- One").unwrap();
-
-        let app = test_app();
-
-        assert_eq!(app.state.update_available, None);
-        assert!(app.state.latest_release_notes_available);
-
-        std::env::remove_var(crate::config::CONFIG_PATH_ENV_VAR);
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
-    }
-
-    #[test]
-    fn startup_keeps_pending_release_notes_available_without_auto_opening() {
-        let _guard = config_env_lock().lock().unwrap();
-        let path = temp_config_path("startup-pending-release-notes-no-auto-open");
-        std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, &path);
-
-        crate::release_notes::save_pending(env!("CARGO_PKG_VERSION"), "### Changed\n- One")
-            .unwrap();
-        let config = Config {
-            onboarding: Some(false),
-            ..Default::default()
-        };
-        let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
-
-        let app = App::new(
-            &config,
-            crate::app::AppPolicy::TEST,
-            None,
-            api_rx,
-            crate::api::EventHub::default(),
-        );
-
-        assert_eq!(app.state.mode, Mode::Navigate);
-        assert!(app.state.latest_release_notes_available);
-
-        std::env::remove_var(crate::config::CONFIG_PATH_ENV_VAR);
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
-    }
-
-    #[test]
-    fn startup_loads_unseen_product_announcement_for_clients() {
-        let _guard = config_env_lock().lock().unwrap();
-        let path = temp_config_path("startup-product-announcement-auto-open");
-        let state_home = path.parent().unwrap().join("state");
-        let original_xdg_state_home = std::env::var_os("XDG_STATE_HOME");
-        std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, &path);
-        std::env::set_var("XDG_STATE_HOME", &state_home);
-
-        crate::release_notes::save_pending(env!("CARGO_PKG_VERSION"), "### Changed\n- One")
-            .unwrap();
-        crate::product_announcements::save_manifest_announcement(
-            env!("CARGO_PKG_VERSION"),
-            Some(&crate::product_announcements::ManifestAnnouncement {
-                id: "startup-announcement".into(),
-                title: Some("Startup announcement".into()),
-                body: "### Announcement\n- One".into(),
-            }),
-        )
-        .unwrap();
-
-        let config = Config {
-            onboarding: Some(false),
-            ..Default::default()
-        };
-        let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
-
-        let app = App::new(
-            &config,
-            crate::app::AppPolicy::TEST,
-            None,
-            api_rx,
-            crate::api::EventHub::default(),
-        );
-
-        assert_eq!(app.state.mode, Mode::Navigate);
-        assert_eq!(
-            app.state
-                .product_announcement
-                .as_ref()
-                .map(|announcement| announcement.id.as_str()),
-            Some("startup-announcement")
-        );
-
-        std::env::remove_var(crate::config::CONFIG_PATH_ENV_VAR);
-        restore_xdg_state_home(original_xdg_state_home);
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
-    }
-
-    #[test]
     fn reload_config_updates_live_state() {
         let _guard = config_env_lock().lock().unwrap();
         let path = temp_config_path("reload-config-success");
@@ -1617,7 +1205,6 @@ mod tests {
         std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, &path);
 
         let mut app = test_app();
-        app.next_auto_update_check = Some(Instant::now());
         let report = app.reload_config();
 
         assert_eq!(report.status, crate::config::ConfigReloadStatus::Applied);
@@ -1646,8 +1233,6 @@ mod tests {
             app.state.new_terminal_cwd,
             crate::config::NewTerminalCwdConfig::Home
         );
-        assert!(!app.update_version_check_enabled);
-        assert!(app.next_auto_update_check.is_none());
         assert!(app.state.config_diagnostic.is_none());
         let toast = app.state.toast.as_ref().unwrap();
         assert_eq!(toast.kind, crate::app::state::ToastKind::UpdateInstalled);
@@ -2923,35 +2508,6 @@ mod tests {
     }
 
     #[test]
-    fn headless_next_loop_deadline_ignores_resize_poll() {
-        let mut app = test_app();
-        let now = Instant::now();
-        app.session_save_deadline = Some(now + Duration::from_secs(2));
-        app.next_auto_update_check = Some(now + Duration::from_secs(6));
-
-        assert_eq!(
-            app.next_headless_loop_deadline_with_git_refresh(now, false, true),
-            app.session_save_deadline
-        );
-    }
-
-    #[test]
-    fn headless_next_loop_deadline_returns_none_when_resize_poll_is_only_deadline() {
-        let mut app = test_app();
-        let now = Instant::now();
-        app.config_diagnostic_deadline = None;
-        app.toast_deadline = None;
-        app.next_auto_update_check = None;
-        app.session_save_deadline = None;
-        app.state.workspaces.clear();
-
-        assert_eq!(
-            app.next_headless_loop_deadline_with_git_refresh(now, false, true),
-            None
-        );
-    }
-
-    #[test]
     fn due_session_save_starts_background_writer() {
         let _guard = crate::config::test_config_env_lock().lock().unwrap();
         let config_home = unique_temp_path("background-session-save");
@@ -3125,86 +2681,5 @@ mod tests {
 
         std::env::remove_var("XDG_CONFIG_HOME");
         let _ = std::fs::remove_dir_all(config_home);
-    }
-
-    #[tokio::test]
-    async fn full_internal_event_queue_eventually_applies_working_to_idle_transition() {
-        let mut app = test_app();
-        let ws = Workspace::test_new("test");
-        let pane_id = ws.tabs[0].root_pane;
-
-        app.state.workspaces = vec![ws];
-        app.state.ensure_test_terminals();
-        app.state.active = Some(0);
-        app.state.selected = 0;
-        app.state.mode = Mode::Terminal;
-
-        let terminal_id = app.state.workspaces[0]
-            .pane_state(pane_id)
-            .unwrap()
-            .attached_terminal_id
-            .clone();
-        app.handle_internal_event(AppEvent::StateChanged {
-            pane_id,
-            agent: Some(Agent::Pi),
-            state: AgentState::Working,
-            visible_blocker: false,
-            visible_working: false,
-            process_exited: false,
-            observed_at: std::time::Instant::now(),
-        });
-        assert_eq!(
-            app.state.terminals.get(&terminal_id).unwrap().state,
-            AgentState::Working
-        );
-
-        for i in 0..APP_EVENT_CHANNEL_CAPACITY {
-            app.event_tx
-                .try_send(AppEvent::UpdateReady {
-                    version: format!("9.9.{i}"),
-                    install_command: "herdr update".into(),
-                })
-                .unwrap();
-        }
-
-        let tx = app.event_tx.clone();
-        let send = tx.send(AppEvent::StateChanged {
-            pane_id,
-            agent: Some(Agent::Pi),
-            state: AgentState::Idle,
-            visible_blocker: false,
-            visible_working: false,
-            process_exited: false,
-            observed_at: std::time::Instant::now(),
-        });
-        tokio::pin!(send);
-
-        let blocked =
-            tokio::time::timeout(Duration::from_millis(20), async { (&mut send).await }).await;
-        assert!(
-            blocked.is_err(),
-            "state change sender should wait for queue space instead of failing"
-        );
-
-        app.drain_internal_events();
-
-        tokio::time::timeout(Duration::from_millis(50), async { (&mut send).await })
-            .await
-            .expect("state change should enqueue once queue space is available")
-            .expect("app event receiver should still be alive");
-
-        let max_drains = (APP_EVENT_CHANNEL_CAPACITY / APP_EVENT_DRAIN_LIMIT) + 2;
-        for _ in 0..max_drains {
-            if app.state.terminals.get(&terminal_id).unwrap().state == AgentState::Idle {
-                break;
-            }
-            app.drain_internal_events();
-        }
-
-        assert_eq!(
-            app.state.terminals.get(&terminal_id).unwrap().state,
-            AgentState::Idle,
-            "Working→Idle should still apply after temporary queue pressure"
-        );
     }
 }

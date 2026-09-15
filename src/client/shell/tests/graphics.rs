@@ -192,20 +192,6 @@ fn every_dialog_and_menu_occludes_its_panel_not_the_whole_screen() {
     let palette = ClientShellConfig::from_config(&Config::default()).palette;
     let overlays = vec![
         ClientShellOverlay::Onboarding,
-        ClientShellOverlay::ProductAnnouncement(crate::app::state::ProductAnnouncementState {
-            version: "1".into(),
-            id: "test".into(),
-            title: "news".into(),
-            body: "body".into(),
-            scroll: 0,
-            preview: false,
-        }),
-        ClientShellOverlay::ReleaseNotes(crate::app::state::ReleaseNotesState {
-            version: "1".into(),
-            body: "body".into(),
-            scroll: 0,
-            preview: false,
-        }),
         ClientShellOverlay::Rename(ClientRenameOverlay {
             title: "rename",
             input: "name".into(),

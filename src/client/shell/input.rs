@@ -170,14 +170,7 @@ impl ClientShellState {
                 RawInputEvent::Key(key) => self.handle_key(key, &mut outcome),
                 RawInputEvent::Text(text) => {
                     let text = text.into_string();
-                    if matches!(
-                        self.overlay,
-                        Some(
-                            ClientShellOverlay::Onboarding
-                                | ClientShellOverlay::ProductAnnouncement(_)
-                                | ClientShellOverlay::ReleaseNotes(_)
-                        )
-                    ) {
+                    if matches!(self.overlay, Some(ClientShellOverlay::Onboarding)) {
                         self.reconcile_input_source();
                         continue;
                     }
@@ -203,14 +196,7 @@ impl ClientShellState {
                     }
                 }
                 RawInputEvent::Paste(text) => {
-                    if matches!(
-                        self.overlay,
-                        Some(
-                            ClientShellOverlay::Onboarding
-                                | ClientShellOverlay::ProductAnnouncement(_)
-                                | ClientShellOverlay::ReleaseNotes(_)
-                        )
-                    ) {
+                    if matches!(self.overlay, Some(ClientShellOverlay::Onboarding)) {
                         self.reconcile_input_source();
                         continue;
                     }
@@ -506,14 +492,7 @@ impl ClientShellState {
         {
             return None;
         }
-        if matches!(
-            self.overlay,
-            Some(
-                ClientShellOverlay::Onboarding
-                    | ClientShellOverlay::ProductAnnouncement(_)
-                    | ClientShellOverlay::ReleaseNotes(_)
-            )
-        ) {
+        if matches!(self.overlay, Some(ClientShellOverlay::Onboarding)) {
             if key.kind == KeyEventKind::Press {
                 self.route_overlay_key(key, outcome);
             }
@@ -973,17 +952,11 @@ impl ClientShellState {
     pub(crate) fn clipboard_image_target(
         &self,
     ) -> Option<crate::protocol::ClientClipboardImageTarget> {
-        if matches!(
-            self.overlay,
-            Some(
-                ClientShellOverlay::Onboarding
-                    | ClientShellOverlay::ProductAnnouncement(_)
-                    | ClientShellOverlay::ReleaseNotes(_)
-            )
-        ) || self
-            .copy_mode
-            .as_ref()
-            .is_some_and(|copy_mode| copy_mode.search_prompt.is_some())
+        if matches!(self.overlay, Some(ClientShellOverlay::Onboarding))
+            || self
+                .copy_mode
+                .as_ref()
+                .is_some_and(|copy_mode| copy_mode.search_prompt.is_some())
         {
             return None;
         }

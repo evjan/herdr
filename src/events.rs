@@ -126,11 +126,6 @@ pub enum AppEvent {
         known_agent: Option<Agent>,
         seq: Option<u64>,
     },
-    /// A new version is available through the active installation manager.
-    UpdateReady {
-        version: String,
-        install_command: String,
-    },
     /// A pane child emitted one or more executable BEL characters.
     /// The host-facing process forwards them to its outer terminal.
     TerminalBell { pane_id: PaneId, count: u16 },

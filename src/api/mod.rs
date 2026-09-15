@@ -83,6 +83,10 @@ pub(crate) fn request_changes_ui(request: &Request) -> bool {
 pub struct ApiRequestMessage {
     pub request: Request,
     pub respond_to: std::sync::mpsc::Sender<String>,
+    /// Set by the socket server so a caller can wait until the response is
+    /// actually written. Only the socket write-completion test observes it now;
+    /// the live-handoff waiter that consumed it in production is gone.
+    #[allow(dead_code)]
     pub response_write_complete: Option<std::sync::mpsc::Receiver<()>>,
     pub stream_active: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
 }

@@ -108,12 +108,6 @@ impl Runtime {
         self.revision = self.revision.wrapping_add(1);
     }
 
-    #[cfg(test)]
-    pub(crate) fn clear(&mut self) {
-        self.slots.clear();
-        self.mark_changed();
-    }
-
     pub(crate) fn reserve_image_id(&mut self, key: &Key) -> Option<u32> {
         if let Some(id) = self.slots.get(key).map(|slot| slot.host_image_id) {
             return Some(id);

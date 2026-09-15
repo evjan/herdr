@@ -522,6 +522,7 @@ fn stream_set_message(
             },
             respond_to,
             response_write_complete: None,
+
             stream_active: None,
         },
         response_rx,
@@ -587,6 +588,7 @@ fn direct_stream_message(
             },
             respond_to,
             response_write_complete: None,
+
             stream_active: None,
         },
         response_rx,
@@ -669,6 +671,7 @@ fn stream_open_gate_is_owned_by_the_layer_and_cancels_on_removal() {
         },
         respond_to,
         response_write_complete: None,
+
         stream_active: Some(active.clone()),
     });
     assert!(
@@ -702,88 +705,6 @@ fn stream_open_gate_is_owned_by_the_layer_and_cancels_on_removal() {
 }
 
 #[test]
-fn stream_set_has_graphics_only_render_impact() {
-    let mut server = test_headless_server();
-    let workspace = crate::workspace::Workspace::test_new("graphics");
-    let pane_id = workspace.tabs[0].root_pane;
-    let public_pane_id = format!("{}:p1", workspace.id);
-    server.app.state.workspaces = vec![workspace];
-    server.app.state.active = Some(0);
-    server.app.state.selected = 0;
-    server.app.state.kitty_graphics_enabled = true;
-    set_stream_owner(&mut server, pane_id, "owner-a");
-
-    let (request, response_rx) =
-        stream_set_message("wrong-owner", &public_pane_id, "owner-b", vec![1, 2, 3]);
-    assert_eq!(
-        server.handle_api_request_with_render_impact(request),
-        RenderImpact::None
-    );
-    assert!(serde_json::from_str::<api::schema::ErrorResponse>(
-        &response_rx
-            .recv_timeout(Duration::from_millis(100))
-            .unwrap()
-    )
-    .is_ok());
-
-    let (request, response_rx) =
-        stream_set_message("stream-frame", &public_pane_id, "owner-a", vec![1, 2, 3]);
-    assert_eq!(
-        server.handle_api_request_with_render_impact(request),
-        RenderImpact::Graphics
-    );
-    assert!(serde_json::from_str::<api::schema::SuccessResponse>(
-        &response_rx
-            .recv_timeout(Duration::from_millis(100))
-            .unwrap()
-    )
-    .is_ok());
-
-    server
-        .app
-        .event_tx
-        .try_send(AppEvent::UpdateReady {
-            version: "9.9.9".into(),
-            install_command: "herdr update".into(),
-        })
-        .unwrap();
-    let (request, _response_rx) = stream_set_message(
-        "stream-frame-with-internal-event",
-        &public_pane_id,
-        "owner-a",
-        vec![4, 5, 6],
-    );
-    assert_eq!(
-        server.handle_api_request_with_render_impact(request),
-        RenderImpact::Full
-    );
-
-    server.app.pane_graphics.clear();
-    let (respond_to, _response_rx) = std::sync::mpsc::channel();
-    let impact = server.handle_api_request_with_render_impact(api::ApiRequestMessage {
-        request: api::schema::Request {
-            id: "direct-frame".into(),
-            method: api::schema::Method::PaneGraphicsSet(api::schema::PaneGraphicsSetParams {
-                pane_id: public_pane_id,
-                layer_id: None,
-                z_index: 0,
-                owner: String::new(),
-                format: api::schema::PaneGraphicsFormat::Png,
-                image_width: 1,
-                image_height: 1,
-                data: Some(vec![1, 2, 3]),
-                data_base64: String::new(),
-                placement: api::schema::PaneGraphicsPlacementParams::default(),
-            }),
-        },
-        respond_to,
-        response_write_complete: None,
-        stream_active: None,
-    });
-    assert_eq!(impact, RenderImpact::Full);
-}
-
-#[test]
 fn rejected_or_stale_requests_do_not_schedule_rendering() {
     let mut server = test_headless_server();
     let workspace = crate::workspace::Workspace::test_new("graphics");
@@ -813,6 +734,7 @@ fn rejected_or_stale_requests_do_not_schedule_rendering() {
         },
         respond_to,
         response_write_complete: None,
+
         stream_active: None,
     });
     assert!(!changed);
@@ -844,6 +766,7 @@ fn rejected_or_stale_requests_do_not_schedule_rendering() {
         },
         respond_to,
         response_write_complete: None,
+
         stream_active: None,
     });
     assert_eq!(impact, RenderImpact::None);

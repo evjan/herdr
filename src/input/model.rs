@@ -342,6 +342,8 @@ impl KeyboardProtocol {
 #[cfg(any(unix, test))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+// Reported through InputState, which only the terminal migration tests read.
+#[allow(dead_code)]
 pub enum MouseProtocolMode {
     None,
     Press,

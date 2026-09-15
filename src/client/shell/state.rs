@@ -195,12 +195,6 @@ pub(super) enum ClientChromeDrag {
     HelpScrollbar {
         grab_row_offset: u16,
     },
-    ProductAnnouncementScrollbar {
-        grab_row_offset: u16,
-    },
-    ReleaseNotesScrollbar {
-        grab_row_offset: u16,
-    },
     Tab {
         tab_id: String,
         workspace_id: String,
@@ -273,8 +267,6 @@ pub(super) enum ClientShellMode {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ClientShellOverlayKind {
     Onboarding,
-    ProductAnnouncement,
-    ReleaseNotes,
     Rename,
     ConfirmClose,
     Help,
@@ -566,8 +558,6 @@ pub(super) struct ClientConfirmCloseOverlay {
 #[derive(Debug)]
 pub(super) enum ClientShellOverlay {
     Onboarding,
-    ProductAnnouncement(crate::app::state::ProductAnnouncementState),
-    ReleaseNotes(crate::app::state::ReleaseNotesState),
     Rename(ClientRenameOverlay),
     ConfirmClose(ClientConfirmCloseOverlay),
     Help(ClientHelpOverlay),
@@ -584,8 +574,6 @@ impl ClientShellOverlay {
     pub(super) fn kind(&self) -> ClientShellOverlayKind {
         match self {
             Self::Onboarding => ClientShellOverlayKind::Onboarding,
-            Self::ProductAnnouncement(_) => ClientShellOverlayKind::ProductAnnouncement,
-            Self::ReleaseNotes(_) => ClientShellOverlayKind::ReleaseNotes,
             Self::Rename(_) => ClientShellOverlayKind::Rename,
             Self::ConfirmClose(_) => ClientShellOverlayKind::ConfirmClose,
             Self::Help(_) => ClientShellOverlayKind::Help,
@@ -603,11 +591,6 @@ impl ClientShellOverlay {
 #[derive(Debug)]
 pub(super) enum PendingEndpointKind {
     Generic,
-    ProductAnnouncementDismiss {
-        version: String,
-        id: String,
-    },
-    ReleaseNotesDismiss,
     PopupCommand,
     ReloadConfig,
     IntegrationList,
@@ -910,31 +893,6 @@ pub(crate) struct ClientShellState {
     pub(super) config_diagnostic: Option<String>,
     pub(super) endpoint_error: Option<String>,
     pub(super) endpoint_error_deadline: Option<std::time::Instant>,
-    pub(super) dismissed_product_announcement: Option<(String, String)>,
-}
-
-pub(super) fn product_announcement_state(
-    announcement: &crate::protocol::ClientShellProductAnnouncement,
-) -> crate::app::state::ProductAnnouncementState {
-    crate::app::state::ProductAnnouncementState {
-        version: announcement.version.clone(),
-        id: announcement.id.clone(),
-        title: announcement.title.clone(),
-        body: announcement.body.clone(),
-        scroll: 0,
-        preview: announcement.preview,
-    }
-}
-
-pub(super) fn release_notes_state(
-    notes: &crate::protocol::ClientShellReleaseNotes,
-) -> crate::app::state::ReleaseNotesState {
-    crate::app::state::ReleaseNotesState {
-        version: notes.version.clone(),
-        body: notes.body.clone(),
-        scroll: 0,
-        preview: notes.preview,
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -1063,7 +1021,6 @@ impl ClientShellState {
             local_config_diagnostic,
             endpoint_error: None,
             endpoint_error_deadline: None,
-            dismissed_product_announcement: None,
         }
     }
 
@@ -1229,7 +1186,6 @@ impl ClientShellState {
         self.copy_feedback = None;
         self.copy_feedback_deadline = None;
         self.host_mouse_pixels = None;
-        self.dismissed_product_announcement = None;
     }
 
     pub(super) fn apply_active_snapshot(
@@ -1463,61 +1419,6 @@ impl ClientShellState {
         self.pane_scroll_targets
             .retain(|pane_id, _| pane_exists(pane_id));
 
-        if !self.config.startup_onboarding {
-            match snapshot.product_announcement.as_ref() {
-                Some(announcement) => {
-                    let key = (announcement.version.clone(), announcement.id.clone());
-                    let already_open = matches!(
-                        self.overlay.as_ref(),
-                        Some(ClientShellOverlay::ProductAnnouncement(current))
-                            if current.version == announcement.version && current.id == announcement.id
-                    );
-                    let may_open = self.overlay.is_none()
-                        || matches!(
-                            self.overlay.as_ref(),
-                            Some(ClientShellOverlay::ProductAnnouncement(_))
-                        );
-                    if self.dismissed_product_announcement.as_ref() != Some(&key)
-                        && may_open
-                        && !already_open
-                    {
-                        self.overlay = Some(ClientShellOverlay::ProductAnnouncement(
-                            product_announcement_state(announcement),
-                        ));
-                    }
-                }
-                None if matches!(
-                    self.overlay.as_ref(),
-                    Some(ClientShellOverlay::ProductAnnouncement(_))
-                ) =>
-                {
-                    self.overlay = None;
-                    self.chrome_drag = None;
-                    self.dismissed_product_announcement = None;
-                }
-                None => {
-                    self.dismissed_product_announcement = None;
-                }
-            }
-        }
-        if let Some(ClientShellOverlay::ReleaseNotes(current)) = self.overlay.as_ref() {
-            match snapshot.release_notes.as_ref() {
-                Some(notes)
-                    if current.version != notes.version
-                        || current.body != notes.body
-                        || current.preview != notes.preview =>
-                {
-                    self.overlay =
-                        Some(ClientShellOverlay::ReleaseNotes(release_notes_state(notes)));
-                    self.chrome_drag = None;
-                }
-                None => {
-                    self.overlay = None;
-                    self.chrome_drag = None;
-                }
-                Some(_) => {}
-            }
-        }
         self.snapshot = Some(snapshot);
         let pending_surface = self.pending_pane_surface.take();
         if let Some(surface) = pending_surface {
@@ -1610,10 +1511,7 @@ impl ClientShellState {
             }
             self.mode = ClientShellMode::Terminal;
             self.navigate_workspace_id = None;
-            if !matches!(
-                self.overlay.as_ref(),
-                Some(ClientShellOverlay::Onboarding | ClientShellOverlay::ProductAnnouncement(_))
-            ) {
+            if !matches!(self.overlay.as_ref(), Some(ClientShellOverlay::Onboarding)) {
                 self.overlay = self
                     .config
                     .startup_onboarding

@@ -3515,31 +3515,6 @@
           ],
           "type": "object"
         },
-        "ServerLiveHandoffParams": {
-          "properties": {
-            "expected_protocol": {
-              "format": "uint32",
-              "minimum": 0,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "expected_version": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "import_exe": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          "type": "object"
-        },
         "SplitDirection": {
           "enum": [
             "right",
@@ -4325,22 +4300,6 @@
             },
             "params": {
               "$ref": "#/schemas/request/$defs/EmptyParams"
-            }
-          },
-          "required": [
-            "method",
-            "params"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "method": {
-              "const": "server.live_handoff",
-              "type": "string"
-            },
-            "params": {
-              "$ref": "#/schemas/request/$defs/ServerLiveHandoffParams"
             }
           },
           "required": [

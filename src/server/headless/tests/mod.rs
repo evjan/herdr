@@ -94,9 +94,7 @@ fn test_headless_server_with_event_hub(event_hub: api::EventHub) -> HeadlessServ
         headless_size,
         effective_size: headless_size,
         shutting_down: false,
-        handoff_in_progress: false,
         #[cfg(unix)]
-        pending_handoff_repaint_nudge: false,
         should_quit,
         server_event_rx,
         server_event_tx,
@@ -132,18 +130,6 @@ fn read_server_shutdown_reason(bytes: Vec<u8>) -> Option<String> {
         ServerMessage::ServerShutdown { reason } => reason,
         other => panic!("expected shutdown, got {other:?}"),
     }
-}
-
-#[test]
-fn completed_handoff_disables_only_old_server_session_persistence() {
-    let mut server = test_headless_server();
-    server.app.policy = crate::app::AppPolicy::PRODUCTION;
-
-    server.finish_live_handoff_shutdown();
-
-    assert!(!server.app.policy.persist_session);
-    assert!(server.app.policy.restore_session);
-    assert!(server.app.policy.background_updates);
 }
 
 #[test]
@@ -217,6 +203,7 @@ fn headless_pane_list(server: &mut HeadlessServer) -> Vec<api::schema::PaneInfo>
         },
         respond_to,
         response_write_complete: None,
+
         stream_active: None,
     });
     let response: api::schema::SuccessResponse =
@@ -250,46 +237,6 @@ fn server_stop_interrupts_server_event_backlog() {
     assert!(!server.drain_server_events());
     assert!(server.server_event_rx.try_recv().is_ok());
     shutdown_test_runtimes(&mut server);
-}
-
-#[test]
-fn headless_api_request_drains_all_pending_internal_events_before_reading_state() {
-    let mut server = test_headless_server();
-    for i in 0..=crate::app::APP_EVENT_DRAIN_LIMIT {
-        server
-            .app
-            .event_tx
-            .try_send(AppEvent::UpdateReady {
-                version: format!("4.0.{i}"),
-                install_command: "herdr install".into(),
-            })
-            .unwrap();
-    }
-
-    let (respond_to, response_rx) = std::sync::mpsc::channel();
-    assert!(
-        server.handle_api_request_with_shutdown_check(api::ApiRequestMessage {
-            request: api::schema::Request {
-                id: "headless_stop_after_events".into(),
-                method: api::schema::Method::ServerStop(api::schema::EmptyParams::default()),
-            },
-            respond_to,
-            response_write_complete: None,
-            stream_active: None,
-        })
-    );
-    let response = response_rx
-        .recv_timeout(Duration::from_millis(100))
-        .unwrap();
-    let response: serde_json::Value = serde_json::from_str(&response).unwrap();
-
-    assert_eq!(response["result"]["type"], "ok");
-    let expected_version = format!("4.0.{}", crate::app::APP_EVENT_DRAIN_LIMIT);
-    assert_eq!(
-        server.app.state.update_available.as_deref(),
-        Some(expected_version.as_str())
-    );
-    assert!(server.app.event_rx.try_recv().is_err());
 }
 
 fn window_title_test_server() -> (HeadlessServer, std::sync::mpsc::Receiver<Vec<u8>>) {
@@ -913,178 +860,6 @@ async fn client_shell_pairs_agent_view_set_replacement_and_clear_with_snapshots(
     assert_eq!(cleared.revision, cleared_snapshot.revision);
     assert!(cleared.view.is_none());
     assert!(cleared_snapshot.agent_view_label.is_none());
-}
-
-#[tokio::test]
-async fn client_shell_receives_metadata_then_shell_free_pane_surface() {
-    let mut server = test_headless_server();
-    let mut workspace = crate::workspace::Workspace::test_new("shell-only-label");
-    let pane_id = workspace.focused_pane_id().expect("focused pane");
-    workspace.insert_test_runtime(
-        pane_id,
-        crate::terminal::TerminalRuntime::test_with_screen_bytes(
-            80,
-            23,
-            b"\x1b[?1003h\x1b[?1006h\x1b[?1016hCLIENT_SHELL_LIVE",
-        ),
-    );
-    server.app.state.workspaces = vec![workspace];
-    server.app.state.active = Some(0);
-    server.app.state.selected = 0;
-    server.app.state.mode = crate::app::Mode::Terminal;
-    server.app.state.product_announcement = Some(crate::app::state::ProductAnnouncementState {
-        version: "0.8.2".into(),
-        id: "client-shell".into(),
-        title: "Client shell".into(),
-        body: "announcement".into(),
-        scroll: 0,
-        preview: true,
-    });
-    server.server_config_diagnostic_without_keybindings = Some("endpoint config warning".into());
-
-    let (writer, control_rx, render_rx) = test_client_writer();
-    assert!(
-        server.handle_server_event(ServerEvent::ClientShellConnected {
-            surface_reuse: false,
-            client_id: 7,
-            surface_cols: 80,
-            surface_rows: 23,
-            cell_width_px: 10,
-            cell_height_px: 20,
-            pixel_mouse: true,
-            direct_graphics: false,
-            endpoint_keybindings: false,
-            mouse_capture: false,
-            surface_active: true,
-            writer,
-        })
-    );
-    let snapshot = client_shell_snapshot(read_server_message(
-        control_rx.recv().expect("shell snapshot"),
-    ));
-    assert_eq!(snapshot.workspaces.len(), 1);
-    assert_eq!(snapshot.workspaces[0].label, "shell-only-label");
-    assert_eq!(
-        snapshot.config_diagnostic.as_deref(),
-        Some("endpoint config warning")
-    );
-    assert_eq!(
-        snapshot.product_announcement.as_ref().map(|announcement| (
-            announcement.version.as_str(),
-            announcement.id.as_str(),
-            announcement.preview,
-        )),
-        Some(("0.8.2", "client-shell", true))
-    );
-
-    server.render_and_stream();
-    let initial_surface = match read_server_message(render_rx.recv().expect("pane surface")) {
-        ServerMessage::PaneSurface(surface) => {
-            assert_eq!((surface.frame.width, surface.frame.height), (80, 23));
-            let text = frame_text(&surface.frame);
-            assert!(text.contains("CLIENT_SHELL_LIVE"), "surface: {text:?}");
-            assert!(!text.contains("shell-only-label"), "surface: {text:?}");
-            assert_eq!(surface.panes.len(), 1);
-            assert_eq!(surface.panes[0].rect.x, 0);
-            assert_eq!(surface.panes[0].rect.y, 0);
-            assert!(surface.panes[0].sgr_pixel_mouse);
-            assert_eq!(
-                surface.panes[0].pixel_width,
-                u32::from(surface.panes[0].inner_rect.width) * 10
-            );
-            assert_eq!(
-                surface.panes[0].pixel_height,
-                u32::from(surface.panes[0].inner_rect.height) * 20
-            );
-            surface
-        }
-        other => panic!("expected pane surface, got {other:?}"),
-    };
-
-    let baseline = server.clients[&7]
-        .render_state
-        .last_pane_surface()
-        .expect("initial baseline");
-    let cells_ptr = baseline.frame.cells.as_ptr();
-    let untouched_symbol_ptr = baseline.frame.cells.last().unwrap().symbol.as_ptr();
-
-    server
-        .app
-        .state
-        .runtime_for_pane_in_workspace(&server.app.terminal_runtimes, 0, pane_id)
-        .expect("pane runtime")
-        .test_process_pty_bytes(b"\rPATCHED");
-    let sources = std::collections::HashSet::from([pane_id]);
-    assert!(server.render_retained_pane_surface_and_stream(&sources));
-    match read_server_message(render_rx.recv().expect("pane surface patch")) {
-        ServerMessage::PaneSurfacePatch(patch) => {
-            assert_eq!(
-                patch.base_surface_revision,
-                initial_surface.surface_revision
-            );
-            assert_eq!(patch.surface_revision, initial_surface.surface_revision + 1);
-            assert_eq!(patch.panes.len(), 1);
-            assert!(!patch.rows.is_empty());
-            assert!(patch
-                .rows
-                .iter()
-                .flat_map(|row| &row.cells)
-                .any(|cell| cell.symbol == "P"));
-        }
-        other => panic!("expected pane surface patch, got {other:?}"),
-    }
-    let patched = server.clients[&7].render_state.last_pane_surface().unwrap();
-    assert_eq!(
-        (
-            patched.frame.cells.as_ptr(),
-            patched.frame.cells.last().unwrap().symbol.as_ptr()
-        ),
-        (cells_ptr, untouched_symbol_ptr),
-        "a text patch must preserve the frame and unchanged cell storage"
-    );
-    server
-        .app
-        .state
-        .runtime_for_pane_in_workspace(&server.app.terminal_runtimes, 0, pane_id)
-        .expect("pane runtime")
-        .test_process_pty_bytes(b"\x1b[?1003l\x1b[?1006l\x1b[?1016l");
-    assert!(server.render_retained_pane_surface_and_stream(&sources));
-    match read_server_message(render_rx.recv().expect("metadata-only pane surface patch")) {
-        ServerMessage::PaneSurfacePatch(patch) => {
-            assert!(patch.rows.is_empty(), "mouse modes only change metadata");
-            assert_eq!(patch.panes.len(), 1);
-            assert!(!patch.panes[0].mouse_reporting);
-            assert!(!patch.panes[0].sgr_pixel_mouse);
-        }
-        other => panic!("expected metadata-only pane surface patch, got {other:?}"),
-    }
-    let retained = server.clients[&7]
-        .render_state
-        .last_pane_surface()
-        .expect("committed retained surface");
-    assert_eq!(retained.frame.cells.as_ptr(), cells_ptr);
-    assert_eq!(
-        retained.frame.cells.last().unwrap().symbol.as_ptr(),
-        untouched_symbol_ptr,
-        "retained updates must not copy unchanged screen cells"
-    );
-    let retained = retained.clone();
-    server
-        .clients
-        .get_mut(&7)
-        .unwrap()
-        .render_state
-        .request_repaint();
-    server.render_and_stream();
-    let full = match read_server_message(render_rx.recv().expect("full comparison surface")) {
-        ServerMessage::PaneSurface(surface) => surface,
-        other => panic!("expected full comparison surface, got {other:?}"),
-    };
-    assert!(full.surface_revision > retained.surface_revision);
-    assert_eq!(retained.frame, full.frame);
-    assert_eq!(retained.panes, full.panes);
-    assert_eq!(retained.splits, full.splits);
-    shutdown_test_runtimes(&mut server);
 }
 
 fn install_shared_view_test_runtime(server: &mut HeadlessServer) -> crate::layout::PaneId {
@@ -1852,6 +1627,7 @@ async fn client_local_navigation_does_not_emit_global_focus_transitions() {
             },
             respond_to,
             response_write_complete: None,
+
             stream_active: None,
         },
     );
@@ -1943,6 +1719,7 @@ async fn client_local_navigation_emits_pane_focused_only_when_that_client_moves(
                 },
                 respond_to,
                 response_write_complete: None,
+
                 stream_active: None,
             },
         );
@@ -2075,6 +1852,7 @@ async fn repeated_layout_action_reapplies_controller_geometry() {
             },
             respond_to,
             response_write_complete: None,
+
             stream_active: None,
         },
     ));
@@ -2120,6 +1898,7 @@ async fn public_close_reapplies_controller_geometry() {
             },
             respond_to,
             response_write_complete: None,
+
             stream_active: None,
         })
     );
@@ -2324,6 +2103,7 @@ async fn public_background_tab_create_preserves_client_locations() {
         },
         respond_to,
         response_write_complete: None,
+
         stream_active: None,
     });
 
@@ -2372,6 +2152,7 @@ async fn public_workspace_focus_preserves_each_clients_remembered_tabs() {
         },
         respond_to,
         response_write_complete: None,
+
         stream_active: None,
     });
 
@@ -2455,6 +2236,7 @@ async fn public_agent_focus_replaces_a_diverged_client_shell_projection() {
         },
         respond_to,
         response_write_complete: None,
+
         stream_active: None,
     });
     let response: crate::api::schema::SuccessResponse =
@@ -2534,6 +2316,7 @@ async fn public_api_focus_replaces_every_client_shell_projection() {
         },
         respond_to,
         response_write_complete: None,
+
         stream_active: None,
     });
     assert_eq!(server.app.state.active, Some(1));
@@ -6336,87 +6119,6 @@ fn oversized_paste_rejection_notifies_only_the_sending_client() {
 }
 
 #[test]
-fn update_notification_reaches_client_shell_independent_of_delivery() {
-    let mut server = test_headless_server();
-    let (client_tx, client_control_rx, _client_rx) = test_client_writer();
-
-    server.clients.insert(
-        1,
-        ClientConnection::new(
-            (80, 24),
-            crate::kitty_graphics::HostCellSize::default(),
-            1,
-            RenderEncoding::SemanticFrame,
-            Some(client_tx),
-        ),
-    );
-    server.foreground_client_id = Some(1);
-    server.app.state.toast_config.delivery = crate::config::ToastDelivery::Herdr;
-
-    let changed = server.handle_internal_event_with_forwarding(AppEvent::UpdateReady {
-        version: "9.9.9".to_string(),
-        install_command: "herdr update".into(),
-    });
-
-    assert!(changed);
-    assert!(matches!(
-        read_server_message(
-            client_control_rx
-                .recv_timeout(Duration::from_millis(100))
-                .expect("semantic update notification")
-        ),
-        ServerMessage::SemanticNotification(protocol::SemanticNotification {
-            kind: protocol::SemanticNotificationKind::UpdateInstalled,
-            ..
-        })
-    ));
-}
-
-#[test]
-fn update_notification_is_semantic_for_system_delivery() {
-    let mut server = test_headless_server();
-    let (client_tx, client_control_rx, _client_rx) = test_client_writer();
-
-    server.clients.insert(
-        1,
-        ClientConnection::new(
-            (80, 24),
-            crate::kitty_graphics::HostCellSize::default(),
-            1,
-            RenderEncoding::SemanticFrame,
-            Some(client_tx),
-        ),
-    );
-    server.foreground_client_id = Some(1);
-    server.app.state.toast_config.delivery = crate::config::ToastDelivery::System;
-
-    let changed = server.handle_internal_event_with_forwarding(AppEvent::UpdateReady {
-        version: "9.9.9".to_string(),
-        install_command: "herdr update".into(),
-    });
-
-    assert!(changed);
-    match read_server_message(
-        client_control_rx
-            .recv_timeout(Duration::from_millis(100))
-            .expect("semantic update notification"),
-    ) {
-        ServerMessage::SemanticNotification(notification) => {
-            assert_eq!(
-                notification.kind,
-                protocol::SemanticNotificationKind::UpdateInstalled
-            );
-            assert_eq!(notification.title, "Herdr v9.9.9 available");
-            assert_eq!(
-                notification.body.as_deref(),
-                Some("detach, run `herdr update`, then run Herdr again to reconnect")
-            );
-        }
-        other => panic!("expected semantic update notification, got {other:?}"),
-    }
-}
-
-#[test]
 fn notification_show_api_forwards_one_semantic_client_notification() {
     let mut server = test_headless_server();
     let (client_tx, client_control_rx, _client_rx) = test_client_writer();
@@ -6446,6 +6148,7 @@ fn notification_show_api_forwards_one_semantic_client_notification() {
         },
         respond_to,
         response_write_complete: None,
+
         stream_active: None,
     });
 
@@ -6504,6 +6207,7 @@ fn notification_show_api_preserves_colon_in_forwarded_title() {
         },
         respond_to,
         response_write_complete: None,
+
         stream_active: None,
     });
 
@@ -6549,6 +6253,7 @@ fn notification_show_api_validates_empty_title_before_disabled_delivery() {
         },
         respond_to,
         response_write_complete: None,
+
         stream_active: None,
     });
 
@@ -6579,6 +6284,7 @@ fn notification_show_api_reports_no_foreground_client() {
         },
         respond_to,
         response_write_complete: None,
+
         stream_active: None,
     });
 
@@ -6629,6 +6335,7 @@ fn notification_show_api_emits_semantic_event() {
             },
             respond_to,
             response_write_complete: None,
+
             stream_active: None,
         })
     );
@@ -6802,6 +6509,7 @@ fn stale_api_agent_report_does_not_forward_done_notification() {
         },
         respond_to,
         response_write_complete: None,
+
         stream_active: None,
     });
 

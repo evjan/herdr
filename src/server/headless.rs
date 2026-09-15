@@ -47,9 +47,7 @@ use crate::protocol::{
     self, AttachScrollDirection, AttachScrollSource, FrameData, ServerMessage, MAX_FRAME_SIZE,
 };
 #[cfg(unix)]
-use crate::server::client_accept::{
-    accept_pending_client_connections, reject_pending_client_connections,
-};
+use crate::server::client_accept::accept_pending_client_connections;
 use crate::server::client_shell::{
     render_pane_surface as render_client_shell_pane_surface, snapshot as client_shell_snapshot,
 };
@@ -82,9 +80,6 @@ mod retained_surface;
 mod surface_interest;
 
 pub use bootstrap::run_server;
-use lifecycle::wait_for_live_handoff_response_write;
-#[cfg(unix)]
-use lifecycle::wait_for_old_public_sockets_to_close;
 
 use crate::protocol::MAX_GRAPHICS_FRAME_SIZE;
 
@@ -188,13 +183,17 @@ enum AltScreenReadConflict {
 pub struct HeadlessServer {
     app: app::App,
     #[cfg(unix)]
-    api_tx: Option<api::ApiRequestSender>,
     // Kept on every platform so dropping HeadlessServer owns API server shutdown.
     #[cfg_attr(windows, allow(dead_code))]
-    api_server: Option<api::ServerHandle>,
     #[cfg(unix)]
     client_listener: LocalListener,
     client_socket_path: PathBuf,
+    /// Held so the JSON API server keeps listening for the life of the
+    /// headless server; dropping it closes the API socket.
+    #[allow(dead_code)]
+    api_tx: Option<api::ApiRequestSender>,
+    #[allow(dead_code)]
+    api_server: Option<api::ServerHandle>,
     client_socket_identity: SocketFileIdentity,
     clients: HashMap<u64, ClientConnection>,
     #[cfg(unix)]
@@ -236,11 +235,8 @@ pub struct HeadlessServer {
     effective_size: (u16, u16),
     /// Flag set when shutdown is initiated.
     shutting_down: bool,
-    /// Flag set while exporting live PTYs to a replacement server.
-    handoff_in_progress: bool,
     /// Imported panes get one app-safe resize nudge after the first client attaches.
     #[cfg(unix)]
-    pending_handoff_repaint_nudge: bool,
     /// Flag set by Ctrl+C or `server stop` signal.
     should_quit: Arc<AtomicBool>,
     /// Channel for receiving server events from client connection threads.
@@ -366,9 +362,7 @@ impl HeadlessServer {
             headless_size,
             effective_size: headless_size,
             shutting_down: false,
-            handoff_in_progress: false,
             #[cfg(unix)]
-            pending_handoff_repaint_nudge: false,
             should_quit,
             server_event_rx,
             server_event_tx,
@@ -727,11 +721,6 @@ impl HeadlessServer {
         stamp
     }
 
-    #[cfg(unix)]
-    fn resize_shared_runtime_to_effective_size(&mut self) {
-        self.resize_shared_runtime_to_effective_size_with_pending_agent_resumes(true);
-    }
-
     fn resize_shared_runtime_to_effective_size_before_input(&mut self) {
         self.resize_shared_runtime_to_effective_size_with_pending_agent_resumes(false);
     }
@@ -1086,9 +1075,6 @@ impl HeadlessServer {
     /// Accepts pending client connections from the non-blocking listener.
     #[cfg(unix)]
     fn accept_client_connections(&mut self) -> io::Result<()> {
-        if self.handoff_in_progress {
-            return reject_pending_client_connections(&self.client_listener);
-        }
         accept_pending_client_connections(
             &self.client_listener,
             &mut self.next_client_id,
@@ -1184,8 +1170,7 @@ impl HeadlessServer {
                 })
             }
             protocol::ClientClipboardImageTarget::Pane(pane_id) => {
-                !self.handoff_in_progress
-                    && self.app.state.popup_pane.is_none()
+                self.app.state.popup_pane.is_none()
                     && self
                         .clients
                         .get(&client_id)
@@ -1193,11 +1178,9 @@ impl HeadlessServer {
                     && self.app.parse_pane_id(pane_id).is_some()
             }
             protocol::ClientClipboardImageTarget::Popup(terminal_id) => {
-                !self.handoff_in_progress
-                    && self
-                        .clients
-                        .get(&client_id)
-                        .is_some_and(ClientConnection::is_active_shell_client)
+                self.clients
+                    .get(&client_id)
+                    .is_some_and(ClientConnection::is_active_shell_client)
                     && self
                         .app
                         .state
@@ -1243,11 +1226,10 @@ impl HeadlessServer {
                 true
             }
             protocol::ClientClipboardImageTarget::Pane(pane_id) => {
-                if self.handoff_in_progress
-                    || !self
-                        .clients
-                        .get(&client_id)
-                        .is_some_and(ClientConnection::is_active_shell_client)
+                if !self
+                    .clients
+                    .get(&client_id)
+                    .is_some_and(ClientConnection::is_active_shell_client)
                 {
                     return false;
                 }
@@ -1280,11 +1262,10 @@ impl HeadlessServer {
                 true
             }
             protocol::ClientClipboardImageTarget::Popup(terminal_id) => {
-                if self.handoff_in_progress
-                    || !self
-                        .clients
-                        .get(&client_id)
-                        .is_some_and(ClientConnection::is_active_shell_client)
+                if !self
+                    .clients
+                    .get(&client_id)
+                    .is_some_and(ClientConnection::is_active_shell_client)
                 {
                     return false;
                 }
@@ -1427,9 +1408,6 @@ impl HeadlessServer {
         modifiers: u8,
         lines: u16,
     ) -> bool {
-        if self.handoff_in_progress {
-            return false;
-        }
         let Some(client) = self.clients.get(&client_id) else {
             return false;
         };
@@ -1766,28 +1744,6 @@ impl HeadlessServer {
         }
     }
 
-    #[cfg(unix)]
-    fn disconnect_all_clients_for_handoff(&mut self) {
-        let client_ids = self.clients.keys().copied().collect::<Vec<_>>();
-        for client_id in client_ids {
-            self.send_to_client(
-                client_id,
-                ServerMessage::ServerShutdown {
-                    reason: Some(
-                        "live update in progress; reconnect after handoff completes".to_owned(),
-                    ),
-                },
-            );
-            if let Some(client) = self.clients.get_mut(&client_id) {
-                client.writer = None;
-            }
-            let _ = self.remove_client(client_id);
-        }
-        self.foreground_client_id = None;
-        self.sync_foreground_client_state();
-        self.resize_shared_runtime_to_effective_size();
-    }
-
     fn attach_terminal_client(
         &mut self,
         client_id: u64,
@@ -1901,10 +1857,6 @@ impl HeadlessServer {
 
     /// Handles a server event. Returns true if the event requires a re-render.
     fn handle_server_event(&mut self, ev: ServerEvent) -> bool {
-        if self.handoff_in_progress && Self::ignore_client_event_during_handoff(&ev) {
-            return false;
-        }
-
         match ev {
             ServerEvent::ClientConnected {
                 client_id,
@@ -1915,19 +1867,6 @@ impl HeadlessServer {
                 pixel_mouse,
                 writer,
             } => {
-                if self.handoff_in_progress {
-                    if let Ok(message) =
-                        Self::frame_server_message(&ServerMessage::ServerShutdown {
-                            reason: Some(
-                                "live update in progress; reconnect after handoff completes"
-                                    .to_owned(),
-                            ),
-                        })
-                    {
-                        let _ = writer.control.send(message);
-                    }
-                    return false;
-                }
                 info!(
                     client_id,
                     cols, rows, cell_width_px, cell_height_px, "direct terminal client connected"
@@ -1964,19 +1903,6 @@ impl HeadlessServer {
                 surface_reuse,
                 writer,
             } => {
-                if self.handoff_in_progress {
-                    if let Ok(message) =
-                        Self::frame_server_message(&ServerMessage::ServerShutdown {
-                            reason: Some(
-                                "live update in progress; reconnect after handoff completes"
-                                    .to_owned(),
-                            ),
-                        })
-                    {
-                        let _ = writer.control.send(message);
-                    }
-                    return false;
-                }
                 info!(
                     client_id,
                     cols = surface_cols,
@@ -2065,7 +1991,6 @@ impl HeadlessServer {
                 }
                 self.sync_foreground_client_state();
                 self.claim_unowned_shell_tab_geometry(client_id, true);
-                self.nudge_handoff_panes_on_first_client_attach();
                 true
             }
             ServerEvent::GraphicsTransmissionResult {
@@ -2114,14 +2039,6 @@ impl HeadlessServer {
                 client_id, kind, position, geometry, modifiers, lines,
             ),
             ServerEvent::ClientInput { client_id, data } => {
-                if self.handoff_in_progress {
-                    debug!(
-                        client_id,
-                        len = data.len(),
-                        "ignored direct terminal input during handoff"
-                    );
-                    return false;
-                }
                 let Some(ClientConnection {
                     mode: ClientConnectionMode::TerminalAttach { terminal_id },
                     ..
@@ -2394,11 +2311,10 @@ impl HeadlessServer {
                 pane_id,
                 events,
             } => {
-                if self.handoff_in_progress
-                    || !self
-                        .clients
-                        .get(&client_id)
-                        .is_some_and(ClientConnection::is_active_shell_client)
+                if !self
+                    .clients
+                    .get(&client_id)
+                    .is_some_and(ClientConnection::is_active_shell_client)
                 {
                     return false;
                 }
@@ -2481,11 +2397,10 @@ impl HeadlessServer {
                 terminal_id,
                 events,
             } => {
-                if self.handoff_in_progress
-                    || !self
-                        .clients
-                        .get(&client_id)
-                        .is_some_and(ClientConnection::is_active_shell_client)
+                if !self
+                    .clients
+                    .get(&client_id)
+                    .is_some_and(ClientConnection::is_active_shell_client)
                 {
                     return false;
                 }
@@ -2678,18 +2593,6 @@ impl HeadlessServer {
         } else {
             RenderImpact::None
         }
-    }
-
-    fn ignore_client_event_during_handoff(ev: &ServerEvent) -> bool {
-        !matches!(
-            ev,
-            ServerEvent::ClientConnected { .. }
-                | ServerEvent::ClientShellConnected { .. }
-                | ServerEvent::ClientShellEndpointResponseChunkReady { .. }
-                | ServerEvent::ClientDisconnected { .. }
-                | ServerEvent::ClientWriterDrained { .. }
-                | ServerEvent::QuitSignal
-        )
     }
 
     fn agent_read_not_idle_error(
@@ -2965,31 +2868,6 @@ impl HeadlessServer {
         };
         let stream_active = msg.stream_active.clone();
 
-        if let api::schema::Method::ServerLiveHandoff(params) = &msg.request.method {
-            let handoff_result = self.perform_live_handoff(params.clone());
-            let handoff_succeeded = handoff_result.is_ok();
-            let response = match handoff_result {
-                Ok(()) => serde_json::to_string(&api::schema::SuccessResponse {
-                    id: msg.request.id,
-                    result: api::schema::ResponseResult::Ok {},
-                }),
-                Err(err) => serde_json::to_string(&api::schema::ErrorResponse {
-                    id: msg.request.id,
-                    error: api::schema::ErrorBody {
-                        code: "handoff_failed".into(),
-                        message: err.to_string(),
-                    },
-                }),
-            }
-            .unwrap_or_else(|_| "{}".to_string());
-            let _ = msg.respond_to.send(response);
-            if handoff_succeeded {
-                wait_for_live_handoff_response_write(msg.response_write_complete);
-                self.finish_live_handoff_shutdown();
-            }
-            return true;
-        }
-
         if let api::schema::Method::NotificationShow(params) = &msg.request.method {
             let response =
                 self.handle_notification_show_api(msg.request.id.clone(), params.clone());
@@ -3025,10 +2903,7 @@ impl HeadlessServer {
         let mut changed = metadata_expired
             | (pane_graphics_revision_before.is_none() && api::request_changes_ui(&msg.request));
         let skip_default_workspace = skip_default_workspace_for_request
-            || matches!(
-                &msg.request.method,
-                api::schema::Method::ServerStop(_) | api::schema::Method::ServerLiveHandoff(_)
-            );
+            || matches!(&msg.request.method, api::schema::Method::ServerStop(_));
         changed |= self.drain_all_internal_events_with_forwarding();
 
         // Capture toast and effective pane states before the API call so we can
@@ -3346,14 +3221,6 @@ impl HeadlessServer {
 
         if self.has_app_client() {
             self.app.start_git_status_refresh_if_due(now);
-        }
-
-        if self
-            .app
-            .next_auto_update_check
-            .is_some_and(|deadline| now >= deadline)
-        {
-            self.app.run_auto_update_check();
         }
 
         if self

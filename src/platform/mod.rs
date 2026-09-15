@@ -30,20 +30,12 @@ pub enum Signal {
 pub enum ChildExitReason {
     Exited,
     Interrupted,
-    /// Imported runtimes have no child wait handle in the replacement server.
-    #[cfg(unix)]
-    Handoff,
     WaitFailed,
 }
 
 impl ChildExitReason {
     pub(crate) fn requires_session_checkpoint(self) -> bool {
-        match self {
-            Self::Interrupted => true,
-            #[cfg(unix)]
-            Self::Handoff => true,
-            _ => false,
-        }
+        matches!(self, Self::Interrupted)
     }
 }
 
@@ -265,7 +257,7 @@ pub(crate) const REMOTE_BRIDGE_IDLE_TIMEOUT_SUPPORTED: bool =
 #[cfg(unix)]
 mod unix_common;
 #[cfg(unix)]
-pub(crate) use unix_common::{begin_cli_output, end_cli_output};
+pub(crate) use unix_common::begin_cli_output;
 
 mod client_state;
 pub(crate) use client_state::replace_file;
@@ -461,7 +453,6 @@ fn child_exit_classification_only_checkpoints_interruptions() {
     assert_eq!(classify_child_exit(&status), ChildExitReason::Interrupted);
     assert!(classify_child_exit(&status).requires_session_checkpoint());
     #[cfg(unix)]
-    assert!(ChildExitReason::Handoff.requires_session_checkpoint());
     assert!(!ChildExitReason::WaitFailed.requires_session_checkpoint());
 }
 
