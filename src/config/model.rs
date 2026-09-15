@@ -33,7 +33,6 @@ impl UpdateChannelConfig {
 pub struct UpdateConfig {
     pub channel: UpdateChannelConfig,
     pub version_check: bool,
-    pub manifest_check: bool,
 }
 
 impl Default for UpdateConfig {
@@ -41,7 +40,6 @@ impl Default for UpdateConfig {
         Self {
             channel: default_update_channel(),
             version_check: true,
-            manifest_check: true,
         }
     }
 }
@@ -1294,19 +1292,16 @@ mod tests {
         let default_config = Config::default();
         assert_eq!(default_config.update.channel, default_update_channel());
         assert!(default_config.update.version_check);
-        assert!(default_config.update.manifest_check);
 
         let toml = r#"
 [update]
 channel = "preview"
 version_check = false
-manifest_check = false
 "#;
         let config: Config = toml::from_str(toml).unwrap();
         assert_eq!(config.update.channel, UpdateChannelConfig::Preview);
         assert_eq!(config.update.channel.as_str(), "preview");
         assert!(!config.update.version_check);
-        assert!(!config.update.manifest_check);
     }
 
     #[test]

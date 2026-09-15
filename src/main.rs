@@ -126,9 +126,6 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # Check herdr.dev for new Herdr versions in the background.
 # version_check = true
 
-# Check herdr.dev for remote agent-detection manifest updates in the background.
-# manifest_check = true
-
 [keys]
 # Prefix key to enter prefix mode (default: "ctrl+b")
 # Examples: "ctrl+b", "f12", "esc", "-"

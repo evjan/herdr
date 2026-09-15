@@ -4,7 +4,7 @@
 //! against known agent output patterns to determine state.
 
 pub mod manifest;
-pub mod manifest_update;
+pub mod manifest_version;
 
 /// The detected state of a terminal pane.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

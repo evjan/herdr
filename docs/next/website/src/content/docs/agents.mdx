@@ -64,7 +64,7 @@ This means unusual new agent prompts may initially show as `idle` instead of `bl
 
 ## Detection manifests
 
-Bundled manifests live inside Herdr. Herdr also checks herdr.dev for remote manifest updates and applies valid per-agent rule updates automatically without requiring a Herdr restart. Remote manifests are stored in Herdr's state directory. Set `[update] manifest_check = false` to disable background remote manifest checks.
+Bundled manifests live inside Herdr. A local override in the config directory replaces the bundled manifest for that agent.
 
 Local overrides can replace a remote or bundled manifest from the platform config directory:
 
@@ -72,11 +72,11 @@ Local overrides can replace a remote or bundled manifest from the platform confi
 ~/.config/herdr/agent-detection/<agent>.toml
 ```
 
-Local overrides always win. Without a local override, Herdr uses the newer compatible manifest between the cached remote manifest and the bundled manifest in the running binary. On debug builds, the same config helper may use a development directory such as `herdr-dev`. Invalid override files are ignored with a warning and Herdr falls back to the cached remote or bundled manifest for that agent.
+Local overrides always win. Without a local override, Herdr uses the bundled manifest in the running binary. On debug builds, the same config helper may use a development directory such as `herdr-dev`. Invalid override files are ignored with a warning and Herdr falls back to the bundled manifest for that agent.
 
 Remote manifests patch detection rules for agents Herdr already knows how to identify. Adding a completely new agent still requires a Herdr binary update for process detection, labels, and integration behavior.
 
-The running server loads active manifests into memory on startup. Automatic remote manifest updates reload that in-memory cache after new rules are written. Run `herdr server update-agent-manifests` to fetch remote manifest updates immediately and reload the running server. After editing a local override manually, restart Herdr or run `herdr server reload-agent-manifests` to apply the file to the running server.
+The running server loads active manifests into memory on startup. After editing a local override, restart Herdr or run `herdr server reload-agent-manifests` to apply the file to the running server.
 
 Use `herdr agent explain` when a pane shows the wrong state:
 
@@ -85,7 +85,7 @@ herdr agent explain <target>
 herdr agent explain --file screen.txt --agent codex --json
 ```
 
-Live explain is evaluated by the running server, so it reflects the active manifest cache. The explain output shows the agent, final state, whether screen detection was skipped by a full lifecycle authority, manifest source and version, cached remote version, local override shadowing, remote update status, matched rule, visible evidence flags, matcher and region evidence for evaluated rules, skipped-update reason for transcript viewers, and the idle fallback reason when no rule matched.
+Live explain is evaluated by the running server, so it reflects the active manifest cache. The explain output shows the agent, final state, whether screen detection was skipped by a full lifecycle authority, manifest source and version, matched rule, visible evidence flags, matcher and region evidence for evaluated rules, skipped-update reason for transcript viewers, and the idle fallback reason when no rule matched.
 
 Herdr can run inside tmux as the outer terminal environment. Agent detection does not inspect tmux sessions launched inside a Herdr pane. If a shell framework auto-enters tmux inside Herdr, Herdr sees `tmux` as the pane process instead of the agent behind it.
 

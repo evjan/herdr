@@ -130,9 +130,7 @@ pub struct App {
     pub(crate) pending_worktree_remove_runtime_restores: HashMap<crate::layout::PaneId, u64>,
     pub(crate) next_api_worktree_operation_id: u64,
     pub(crate) next_auto_update_check: Option<Instant>,
-    pub(crate) next_agent_manifest_update_check: Option<Instant>,
     pub(crate) update_version_check_enabled: bool,
-    pub(crate) update_manifest_check_enabled: bool,
     pub(crate) loaded_host_cursor: crate::config::HostCursorModeConfig,
     pub(crate) agent_metadata_deadline: Option<Instant>,
     pub(crate) pending_agent_resume_deadline: Option<Instant>,
@@ -511,7 +509,6 @@ impl App {
             host_terminal_appearance_explicit: false,
             integration_recommendations: crate::integration::integration_recommendations(),
             agent_manifest_summaries,
-            agent_manifest_update_status: crate::detect::manifest_update::load_status(),
             installed_plugins: load_plugin_registry(policy.persist_plugin_registry),
             plugin_panes: std::collections::HashMap::new(),
             popup_pane: None,
@@ -538,19 +535,9 @@ impl App {
         // running binary out from under spawned test processes.
         let version_check_enabled =
             background_update_check_enabled(policy.background_updates, config.update.version_check);
-        let manifest_check_enabled = background_update_check_enabled(
-            policy.background_updates,
-            config.update.manifest_check,
-        );
         if version_check_enabled {
             let update_tx = event_tx.clone();
             std::thread::spawn(move || crate::update::auto_update(update_tx));
-        }
-        if manifest_check_enabled {
-            let manifest_update_tx = event_tx.clone();
-            std::thread::spawn(move || {
-                crate::detect::manifest_update::auto_update(manifest_update_tx)
-            });
         }
 
         let last_focus = state.active.and_then(|idx| {
@@ -589,10 +576,7 @@ impl App {
             next_api_worktree_operation_id: 1,
             next_auto_update_check: version_check_enabled
                 .then_some(Instant::now() + AUTO_UPDATE_CHECK_INTERVAL),
-            next_agent_manifest_update_check: manifest_check_enabled
-                .then_some(Instant::now() + AUTO_UPDATE_CHECK_INTERVAL),
             update_version_check_enabled: config.update.version_check,
-            update_manifest_check_enabled: config.update.manifest_check,
             loaded_host_cursor: config.ui.host_cursor,
             agent_metadata_deadline: None,
             pending_agent_resume_deadline: None,
@@ -890,9 +874,7 @@ impl App {
         if !invalid_section("update") {
             let now = Instant::now();
             let previous_version_check_enabled = self.update_version_check_enabled;
-            let previous_manifest_check_enabled = self.update_manifest_check_enabled;
             self.update_version_check_enabled = config.update.version_check;
-            self.update_manifest_check_enabled = config.update.manifest_check;
 
             if !self.update_version_check_enabled {
                 self.next_auto_update_check = None;
@@ -904,17 +886,6 @@ impl App {
                 && self.state.update_available.is_none()
             {
                 self.next_auto_update_check = Some(now);
-            }
-
-            if !self.update_manifest_check_enabled {
-                self.next_agent_manifest_update_check = None;
-            } else if !previous_manifest_check_enabled
-                && background_update_check_enabled(
-                    self.policy.background_updates,
-                    self.update_manifest_check_enabled,
-                )
-            {
-                self.next_agent_manifest_update_check = Some(now);
             }
         }
 
@@ -1672,14 +1643,13 @@ mod tests {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(
             &path,
-            "[terminal]\ndefault_shell = \"nu\"\nshell_mode = \"non_login\"\nnew_cwd = \"home\"\n[keys]\nnew_workspace = \"prefix+m\"\nprefix = \"ctrl+a\"\n[update]\nversion_check = false\nmanifest_check = false\n[server]\nheadless_cols = 160\nheadless_rows = 50\n[ui]\nagent_panel_sort = \"priority\"\n[ui.toast]\ndelivery = \"herdr\"\n",
+            "[terminal]\ndefault_shell = \"nu\"\nshell_mode = \"non_login\"\nnew_cwd = \"home\"\n[keys]\nnew_workspace = \"prefix+m\"\nprefix = \"ctrl+a\"\n[update]\nversion_check = false\n[server]\nheadless_cols = 160\nheadless_rows = 50\n[ui]\nagent_panel_sort = \"priority\"\n[ui.toast]\ndelivery = \"herdr\"\n",
         )
         .unwrap();
         std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, &path);
 
         let mut app = test_app();
         app.next_auto_update_check = Some(Instant::now());
-        app.next_agent_manifest_update_check = Some(Instant::now());
         let report = app.reload_config();
 
         assert_eq!(report.status, crate::config::ConfigReloadStatus::Applied);
@@ -1709,9 +1679,7 @@ mod tests {
             crate::config::NewTerminalCwdConfig::Home
         );
         assert!(!app.update_version_check_enabled);
-        assert!(!app.update_manifest_check_enabled);
         assert!(app.next_auto_update_check.is_none());
-        assert!(app.next_agent_manifest_update_check.is_none());
         assert!(app.state.config_diagnostic.is_none());
         let toast = app.state.toast.as_ref().unwrap();
         assert_eq!(toast.kind, crate::app::state::ToastKind::UpdateInstalled);

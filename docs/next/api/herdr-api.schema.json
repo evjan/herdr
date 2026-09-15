@@ -6748,35 +6748,6 @@
             "agent": {
               "type": "string"
             },
-            "cached_remote_version": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "local_override_shadowing_remote": {
-              "type": "boolean"
-            },
-            "remote_last_checked_unix": {
-              "format": "uint64",
-              "minimum": 0,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "remote_update_error": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "remote_update_result": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
             "source": {
               "type": "string"
             },
@@ -6793,8 +6764,7 @@
           "required": [
             "agent",
             "source",
-            "source_kind",
-            "local_override_shadowing_remote"
+            "source_kind"
           ],
           "type": "object"
         },
@@ -10247,20 +10217,6 @@
             },
             {
               "properties": {
-                "last_check_unix": {
-                  "format": "uint64",
-                  "minimum": 0,
-                  "type": [
-                    "integer",
-                    "null"
-                  ]
-                },
-                "last_result": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
                 "manifests": {
                   "items": {
                     "$ref": "#/schemas/success_response/$defs/AgentManifestInfo"

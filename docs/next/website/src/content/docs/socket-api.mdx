@@ -903,7 +903,6 @@ Successful responses look like this:
         "source": "/home/me/.config/herdr/agent-detection/cursor.toml",
         "source_kind": "local override",
         "active_version": "2026.06.10.1",
-        "cached_remote_version": "2026.06.10.1",
         "local_override_shadowing_remote": true,
         "remote_update_result": "current"
       }
@@ -912,7 +911,7 @@ Successful responses look like this:
 }
 ```
 
-Fields such as `last_check_unix`, `last_result`, `active_version`, `cached_remote_version`, `remote_update_result`, `remote_update_error`, `remote_last_checked_unix`, and `warning` are omitted when not available. `server.reload_agent_manifests` returns `agent_manifest_reload` with the same `manifests` item shape after reloading the in-memory rule cache.
+Fields such as `active_version` and `warning` are omitted when not available. `server.reload_agent_manifests` returns `agent_manifest_reload` with the same `manifests` item shape after reloading the in-memory rule cache.
 
 `agent.explain` evaluates the target pane's detection snapshot in the running server using the server's active manifest cache:
 

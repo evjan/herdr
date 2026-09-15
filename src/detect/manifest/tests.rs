@@ -1,21 +1,5 @@
 use super::*;
 
-fn remote_manifest(version: &str, state: &str, contains: &str) -> String {
-    format!(
-        r#"
-id = "codex"
-version = "{version}"
-min_engine_version = 1
-updated_at = "2026-06-10T12:00:00Z"
-
-[[rules]]
-id = "test"
-state = "{state}"
-contains = ["{contains}"]
-"#
-    )
-}
-
 fn local_manifest(state: &str, contains: &str) -> String {
     format!(
         r#"
@@ -67,15 +51,8 @@ fn with_manifest_dirs<T>(name: &str, f: impl FnOnce() -> T) -> T {
     result
 }
 
-fn write_remote_codex(content: &str) {
-    let path = crate::detect::manifest_update::remote_manifest_path(Agent::Codex);
-    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-    std::fs::write(path, content).unwrap();
-    reload_manifests();
-}
-
-fn write_remote_codex_without_reload(content: &str) {
-    let path = crate::detect::manifest_update::remote_manifest_path(Agent::Codex);
+fn write_local_codex_without_reload(content: &str) {
+    let path = override_path(Agent::Codex).unwrap();
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(path, content).unwrap();
 }
@@ -150,210 +127,6 @@ line_regex = ["^exact line$"]
             line.matched_rule.as_ref().map(|rule| rule.id.as_str()),
             Some("line_regex")
         );
-    });
-}
-
-#[test]
-fn remote_manifest_loads_between_local_override_and_bundled() {
-    with_manifest_dirs("remote-source", || {
-        write_remote_codex(&remote_manifest("9999.01.01.1", "blocked", "remote-ready"));
-
-        let explain = explain(Agent::Codex, "remote-ready");
-
-        assert_eq!(explain.state, AgentState::Blocked);
-        assert!(matches!(
-            explain.source,
-            Some(ManifestSource::Remote { .. })
-        ));
-        assert_eq!(explain.manifest_version.as_deref(), Some("9999.01.01.1"));
-        assert_eq!(
-            explain.cached_remote_version.as_deref(),
-            Some("9999.01.01.1")
-        );
-    });
-}
-
-#[test]
-fn fallback_explain_preserves_active_manifest_version() {
-    with_manifest_dirs("fallback-version", || {
-        write_remote_codex(&remote_manifest("9999.01.01.1", "blocked", "remote-ready"));
-
-        let explain = explain(Agent::Codex, "ordinary prompt text");
-
-        assert_eq!(explain.state, AgentState::Idle);
-        assert_eq!(
-            explain.fallback_reason.as_deref(),
-            Some(DEFAULT_KNOWN_AGENT_IDLE_FALLBACK)
-        );
-        assert_eq!(explain.manifest_version.as_deref(), Some("9999.01.01.1"));
-        assert!(matches!(
-            explain.source,
-            Some(ManifestSource::Remote { .. })
-        ));
-    });
-}
-
-#[test]
-fn older_cached_remote_manifest_does_not_shadow_newer_bundled_manifest() {
-    with_manifest_dirs("older-remote-bundled-fallback", || {
-        write_remote_codex(&remote_manifest("2026.06.10.0", "blocked", "remote-ready"));
-
-        let explain = explain(Agent::Codex, "remote-ready");
-
-        assert_eq!(explain.state, AgentState::Idle);
-        assert!(matches!(explain.source, Some(ManifestSource::Bundled)));
-        assert_eq!(
-            explain.cached_remote_version.as_deref(),
-            Some("2026.06.10.0")
-        );
-        assert!(explain
-            .warning
-            .as_deref()
-            .is_some_and(|warning| warning.contains("older than bundled")));
-    });
-}
-
-#[test]
-fn local_override_shadows_cached_remote_manifest() {
-    with_manifest_dirs("local-shadows-remote", || {
-        write_remote_codex(&remote_manifest("9999.01.01.1", "blocked", "remote-ready"));
-        write_local_codex(&local_manifest("idle", "local-ready"));
-
-        let explain = explain(Agent::Codex, "local-ready");
-
-        assert_eq!(explain.state, AgentState::Idle);
-        assert!(matches!(explain.source, Some(ManifestSource::Override(_))));
-        assert!(explain.local_override_shadowing_remote);
-        assert_eq!(
-            explain.cached_remote_version.as_deref(),
-            Some("9999.01.01.1")
-        );
-    });
-}
-
-#[test]
-fn invalid_local_override_falls_back_to_cached_remote_manifest() {
-    with_manifest_dirs("invalid-local-remote-fallback", || {
-        write_remote_codex(&remote_manifest("9999.01.01.1", "blocked", "remote-ready"));
-        write_local_codex("id = ");
-
-        let explain = explain(Agent::Codex, "remote-ready");
-
-        assert_eq!(explain.state, AgentState::Blocked);
-        assert!(matches!(
-            explain.source,
-            Some(ManifestSource::Remote { .. })
-        ));
-        assert!(explain.warning.is_some());
-    });
-}
-
-#[test]
-fn detection_uses_cached_manifest_until_explicit_reload() {
-    with_manifest_dirs("cache-boundary", || {
-        write_remote_codex(&remote_manifest("9999.01.01.1", "blocked", "cached-ready"));
-
-        let cached = explain(Agent::Codex, "cached-ready");
-        assert_eq!(cached.state, AgentState::Blocked);
-        assert!(matches!(cached.source, Some(ManifestSource::Remote { .. })));
-        assert_eq!(
-            cached.matched_rule.as_ref().map(|rule| rule.id.as_str()),
-            Some("test")
-        );
-
-        write_remote_codex_without_reload(&remote_manifest("9999.01.01.2", "working", "new-ready"));
-
-        let unchanged = explain(Agent::Codex, "new-ready");
-        assert_eq!(unchanged.state, AgentState::Idle);
-        assert_eq!(
-            unchanged.fallback_reason.as_deref(),
-            Some(DEFAULT_KNOWN_AGENT_IDLE_FALLBACK)
-        );
-        assert_eq!(
-            unchanged.cached_remote_version.as_deref(),
-            Some("9999.01.01.1")
-        );
-
-        reload_manifests();
-
-        let reloaded = explain(Agent::Codex, "new-ready");
-        assert_eq!(reloaded.state, AgentState::Working);
-        assert_eq!(
-            reloaded.cached_remote_version.as_deref(),
-            Some("9999.01.01.2")
-        );
-        assert_eq!(
-            reloaded.matched_rule.as_ref().map(|rule| rule.id.as_str()),
-            Some("test")
-        );
-    });
-}
-
-#[test]
-fn compiled_rules_are_shared_until_manifest_reload() {
-    with_manifest_dirs("shared-compiled-rules", || {
-        write_remote_codex(&format!(
-            "{}\nregex = ['^cached-[a-z]+$']\n",
-            remote_manifest("9999.01.01.1", "blocked", "cached-ready")
-        ));
-        let first = load_manifest(Agent::Codex).unwrap();
-        let second = load_manifest(Agent::Codex).unwrap();
-        assert!(!first.compiled_rules.is_empty());
-        assert_eq!(
-            first.compiled_rules.as_ptr(),
-            second.compiled_rules.as_ptr(),
-            "cached loads must retain the same compiled rules and regex search caches"
-        );
-
-        write_remote_codex_without_reload(&format!(
-            "{}\nregex = ['^new-[a-z]+$']\n",
-            remote_manifest("9999.01.01.2", "working", "new-ready")
-        ));
-        let unchanged = load_manifest(Agent::Codex).unwrap();
-        assert_eq!(
-            first.compiled_rules.as_ptr(),
-            unchanged.compiled_rules.as_ptr()
-        );
-
-        reload_manifests_for_agents(&[Agent::Codex]);
-        let reloaded = load_manifest(Agent::Codex).unwrap();
-        let shared_reload = load_manifest(Agent::Codex).unwrap();
-        assert_ne!(
-            first.compiled_rules.as_ptr(),
-            reloaded.compiled_rules.as_ptr()
-        );
-        assert_eq!(
-            reloaded.compiled_rules.as_ptr(),
-            shared_reload.compiled_rules.as_ptr()
-        );
-        assert!(compiled_rule_matches(
-            &first.compiled_rules[0],
-            "cached-ready"
-        ));
-        assert!(!compiled_rule_matches(
-            &first.compiled_rules[0],
-            "new-ready"
-        ));
-        assert_eq!(
-            explain(Agent::Codex, "new-ready").state,
-            AgentState::Working
-        );
-
-        std::thread::scope(|scope| {
-            for _ in 0..4 {
-                let reloaded = &reloaded;
-                scope.spawn(move || {
-                    let loaded = load_manifest(Agent::Codex).unwrap();
-                    assert_eq!(
-                        loaded.compiled_rules.as_ptr(),
-                        reloaded.compiled_rules.as_ptr()
-                    );
-                    for _ in 0..8 {
-                        assert_eq!(detect(Agent::Codex, "new-ready").state, AgentState::Working);
-                    }
-                });
-            }
-        });
     });
 }
 
@@ -1428,4 +1201,125 @@ fn codex_osc_working_beats_weak_blocker_screen() {
         result.matched_rule.as_ref().map(|r| r.id.as_str()),
         Some("osc_title_working")
     );
+}
+
+#[test]
+fn fallback_explain_preserves_active_manifest_version() {
+    with_manifest_dirs("fallback-version", || {
+        write_local_codex(&format!(
+            "version = \"9999.01.01.1\"\n{}",
+            local_manifest("blocked", "override-ready")
+        ));
+
+        let explain = explain(Agent::Codex, "ordinary prompt text");
+
+        assert_eq!(explain.state, AgentState::Idle);
+        assert_eq!(
+            explain.fallback_reason.as_deref(),
+            Some(DEFAULT_KNOWN_AGENT_IDLE_FALLBACK)
+        );
+        assert_eq!(explain.manifest_version.as_deref(), Some("9999.01.01.1"));
+        assert!(matches!(explain.source, Some(ManifestSource::Override(_))));
+    });
+}
+
+#[test]
+fn detection_uses_cached_manifest_until_explicit_reload() {
+    with_manifest_dirs("cache-boundary", || {
+        write_local_codex(&local_manifest("blocked", "cached-ready"));
+
+        let cached = explain(Agent::Codex, "cached-ready");
+        assert_eq!(cached.state, AgentState::Blocked);
+        assert!(matches!(cached.source, Some(ManifestSource::Override(_))));
+        assert_eq!(
+            cached.matched_rule.as_ref().map(|rule| rule.id.as_str()),
+            Some("test")
+        );
+
+        write_local_codex_without_reload(&local_manifest("working", "new-ready"));
+
+        let unchanged = explain(Agent::Codex, "new-ready");
+        assert_eq!(unchanged.state, AgentState::Idle);
+        assert_eq!(
+            unchanged.fallback_reason.as_deref(),
+            Some(DEFAULT_KNOWN_AGENT_IDLE_FALLBACK)
+        );
+
+        reload_manifests();
+
+        let reloaded = explain(Agent::Codex, "new-ready");
+        assert_eq!(reloaded.state, AgentState::Working);
+        assert_eq!(
+            reloaded.matched_rule.as_ref().map(|rule| rule.id.as_str()),
+            Some("test")
+        );
+    });
+}
+
+#[test]
+fn compiled_rules_are_shared_until_manifest_reload() {
+    with_manifest_dirs("shared-compiled-rules", || {
+        write_local_codex(&format!(
+            "{}\nregex = ['^cached-[a-z]+$']\n",
+            local_manifest("blocked", "cached-ready")
+        ));
+        let first = load_manifest(Agent::Codex).unwrap();
+        let second = load_manifest(Agent::Codex).unwrap();
+        assert!(!first.compiled_rules.is_empty());
+        assert_eq!(
+            first.compiled_rules.as_ptr(),
+            second.compiled_rules.as_ptr(),
+            "cached loads must retain the same compiled rules and regex search caches"
+        );
+
+        write_local_codex_without_reload(&format!(
+            "{}\nregex = ['^new-[a-z]+$']\n",
+            local_manifest("working", "new-ready")
+        ));
+        let unchanged = load_manifest(Agent::Codex).unwrap();
+        assert_eq!(
+            first.compiled_rules.as_ptr(),
+            unchanged.compiled_rules.as_ptr()
+        );
+
+        reload_manifests_for_agents(&[Agent::Codex]);
+        let reloaded = load_manifest(Agent::Codex).unwrap();
+        let shared_reload = load_manifest(Agent::Codex).unwrap();
+        assert_ne!(
+            first.compiled_rules.as_ptr(),
+            reloaded.compiled_rules.as_ptr()
+        );
+        assert_eq!(
+            reloaded.compiled_rules.as_ptr(),
+            shared_reload.compiled_rules.as_ptr()
+        );
+        assert!(compiled_rule_matches(
+            &first.compiled_rules[0],
+            "cached-ready"
+        ));
+        assert!(!compiled_rule_matches(
+            &first.compiled_rules[0],
+            "new-ready"
+        ));
+        assert_eq!(
+            explain(Agent::Codex, "new-ready").state,
+            AgentState::Working
+        );
+
+        std::thread::scope(|scope| {
+            for _ in 0..4 {
+                let reloaded = &reloaded;
+                scope.spawn(move || {
+                    let loaded = load_manifest(Agent::Codex).unwrap();
+                    assert_eq!(
+                        loaded.compiled_rules.as_ptr(),
+                        reloaded.compiled_rules.as_ptr()
+                    );
+                    for _ in 0..8 {
+                        assert_eq!(detect(Agent::Codex, "new-ready").state, AgentState::Working);
+                    }
+                });
+            }
+        });
+    });
 }

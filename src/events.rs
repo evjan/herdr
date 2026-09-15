@@ -131,12 +131,6 @@ pub enum AppEvent {
         version: String,
         install_command: String,
     },
-    /// Remote agent detection manifest update check finished.
-    AgentDetectionManifestsUpdated {
-        updated: Vec<crate::detect::manifest_update::ManifestUpdateCommit>,
-        activated: Vec<crate::detect::Agent>,
-        status: crate::detect::manifest_update::ManifestUpdateStatus,
-    },
     /// A pane child emitted one or more executable BEL characters.
     /// The host-facing process forwards them to its outer terminal.
     TerminalBell { pane_id: PaneId, count: u16 },
