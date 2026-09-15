@@ -61,7 +61,7 @@ use crate::config::{
 use crate::protocol::{
     ClientMessage, ClientMousePosition, ClientPaneInputEvent, ClientShellSnapshot, ClientShellTab,
     ClientShellWorkspace, ClientSurfaceSize, FrameData, PaneSurfaceFrame, SemanticNotification,
-    SemanticNotificationKind, SemanticNotificationSound,
+    SemanticNotificationKind,
 };
 #[cfg(test)]
 use crate::raw_input::RawInputEvent;

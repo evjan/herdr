@@ -485,7 +485,7 @@ fn set_stream_owner(server: &mut HeadlessServer, pane_id: crate::layout::PaneId,
 }
 
 fn fill_render_lane(server: &HeadlessServer) {
-    let queued = HeadlessServer::frame_server_message(&ServerMessage::ReloadSoundConfig)
+    let queued = HeadlessServer::frame_server_message(&ServerMessage::ReloadClientConfig)
         .expect("dummy frame");
     server.clients[&1]
         .writer

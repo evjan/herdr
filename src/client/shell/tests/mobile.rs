@@ -35,7 +35,6 @@ fn navigate_update_status_uses_released_desktop_and_mobile_placement() {
             kind: SemanticNotificationKind::Custom,
             title: "bottom notification".into(),
             body: None,
-            sound: None,
             agent: None,
             workspace_id: None,
             tab_id: None,

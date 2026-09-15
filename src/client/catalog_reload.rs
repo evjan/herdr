@@ -124,7 +124,6 @@ mod tests {
             keyboard_report_all_active: false,
             reported_size: (100, 30),
             reported_cell_size: (0, 0),
-            sound_config: Default::default(),
             kitty_graphics_enabled: false,
             pixel_geometry_enabled: false,
             pixel_geometry_exact: false,

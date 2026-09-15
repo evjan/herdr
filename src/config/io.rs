@@ -181,17 +181,6 @@ impl Config {
     }
 }
 
-pub(super) fn resolve_config_relative_path(path: &Path) -> PathBuf {
-    if path.is_absolute() {
-        return path.to_path_buf();
-    }
-
-    config_path()
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .join(path)
-}
-
 pub fn config_path() -> PathBuf {
     if let Ok(path) = std::env::var(CONFIG_PATH_ENV_VAR) {
         return PathBuf::from(path);
@@ -769,11 +758,11 @@ mod tests {
     #[test]
     fn remove_section_key_removes_matching_key_from_section() {
         let content =
-            "[ui.toast]\nenabled = true\ndelivery = \"herdr\"\n[ui.sound]\nenabled = true\n";
+            "[ui.toast]\nenabled = true\ndelivery = \"herdr\"\n[ui.tab_bar]\nenabled = true\n";
         let updated = remove_section_key(content, "ui.toast", "enabled");
         assert!(!updated.contains("[ui.toast]\nenabled = true"));
         assert!(updated.contains("delivery = \"herdr\""));
-        assert!(updated.contains("[ui.sound]\nenabled = true"));
+        assert!(updated.contains("[ui.tab_bar]\nenabled = true"));
     }
 
     #[test]

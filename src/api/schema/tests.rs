@@ -323,7 +323,7 @@ fn command_invoke_request_round_trips_without_command_text() {
 
 #[test]
 fn notification_show_request_parses() {
-    let json = r#"{"id":"req_1","method":"notification.show","params":{"title":"build failed","body":"api workspace","position":"top-left","sound":"request"}}"#;
+    let json = r#"{"id":"req_1","method":"notification.show","params":{"title":"build failed","body":"api workspace","position":"top-left"}}"#;
     let request: Request = serde_json::from_str(json).unwrap();
     let Method::NotificationShow(params) = request.method else {
         panic!("wrong method parsed");
@@ -334,18 +334,6 @@ fn notification_show_request_parses() {
         params.position,
         Some(crate::config::ToastHerdrPosition::TopLeft)
     );
-    assert_eq!(params.sound, NotificationShowSound::Request);
-}
-
-#[test]
-fn notification_show_sound_defaults_to_none() {
-    let json = r#"{"id":"req_1","method":"notification.show","params":{"title":"build failed"}}"#;
-    let request: Request = serde_json::from_str(json).unwrap();
-    let Method::NotificationShow(params) = request.method else {
-        panic!("wrong method parsed");
-    };
-
-    assert_eq!(params.sound, NotificationShowSound::None);
 }
 
 #[test]

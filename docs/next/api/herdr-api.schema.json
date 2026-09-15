@@ -2366,9 +2366,6 @@
                 }
               ]
             },
-            "sound": {
-              "$ref": "#/schemas/request/$defs/NotificationShowSound"
-            },
             "title": {
               "type": "string"
             }
@@ -2377,14 +2374,6 @@
             "title"
           ],
           "type": "object"
-        },
-        "NotificationShowSound": {
-          "enum": [
-            "none",
-            "done",
-            "request"
-          ],
-          "type": "string"
         },
         "OutputMatch": {
           "oneOf": [

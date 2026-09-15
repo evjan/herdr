@@ -502,7 +502,6 @@ impl App {
             shell_mode: config.terminal.shell_mode,
             new_terminal_cwd: config.terminal.new_cwd.clone(),
             pane_scrollback_limit_bytes: config.advanced.scrollback_limit_bytes,
-            sound: config.ui.sound.clone(),
             toast_config: config.ui.toast.clone(),
             keybinds: config.keybinds(),
             palette: theme_palette,
@@ -823,7 +822,6 @@ impl App {
             if let Some(diagnostic) = config.invalid_sidebar_bounds_diagnostic() {
                 diagnostics.push(format!("{diagnostic}; keeping previous [ui] settings"));
             } else {
-                diagnostics.extend(config.ui.sound.diagnostics());
                 diagnostics.extend(crate::config::tab_bar_right_diagnostics(
                     &config.ui.tab_bar_right,
                 ));
@@ -848,7 +846,6 @@ impl App {
                     agent_panel_sort_from_config(config.ui.agent_panel_sort);
                 self.state.sidebar_agents = config.ui.sidebar.agents.clone();
                 self.state.sidebar_spaces = config.ui.sidebar.spaces.clone();
-                self.state.sound = config.ui.sound.clone();
                 self.state.toast_config = config.ui.toast.clone();
             }
         }
@@ -1138,7 +1135,6 @@ mod tests {
                         title: "build failed".into(),
                         body: Some("api workspace".into()),
                         position: Some(crate::config::ToastHerdrPosition::TopLeft),
-                        sound: crate::api::schema::NotificationShowSound::None,
                     },
                 ),
             });
@@ -1174,7 +1170,6 @@ mod tests {
                         title: "build failed".into(),
                         body: None,
                         position: None,
-                        sound: crate::api::schema::NotificationShowSound::None,
                     },
                 ),
             });
@@ -1210,7 +1205,6 @@ mod tests {
                         title: "build failed".into(),
                         body: None,
                         position: None,
-                        sound: crate::api::schema::NotificationShowSound::None,
                     },
                 ),
             });
@@ -1243,7 +1237,6 @@ mod tests {
                         title: "build failed".into(),
                         body: None,
                         position: None,
-                        sound: crate::api::schema::NotificationShowSound::None,
                     },
                 ),
             });

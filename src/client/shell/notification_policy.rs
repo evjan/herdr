@@ -194,20 +194,6 @@ impl ClientShellState {
             let target_active =
                 self.notification_target_is_active(&pending.endpoint_id, &pending.event);
             let suppress_external = target_active && self.outer_focused != Some(false);
-            if let Some(sound) = pending.event.sound {
-                let suppress_sound =
-                    pending.event.kind == SemanticNotificationKind::Finished && suppress_external;
-                if !suppress_sound {
-                    effects.push(ClientShellNotificationEffect::Sound {
-                        sound: match sound {
-                            SemanticNotificationSound::Done => crate::sound::Sound::Done,
-                            SemanticNotificationSound::Request => crate::sound::Sound::Request,
-                        },
-                        agent: pending.event.agent.clone(),
-                    });
-                }
-            }
-
             match self.config.toast_delivery {
                 crate::config::ToastDelivery::Off => {}
                 crate::config::ToastDelivery::Herdr if !target_active => {
@@ -271,7 +257,7 @@ impl ClientShellState {
     ) -> NotificationValidation {
         let Some(pane_id) = event.pane_id.as_deref() else {
             // Finished notifications carry no independently trustworthy completion state. Without
-            // a projected pane to verify as Done, do not emit completion chrome or sound.
+            // a projected pane to verify as Done, do not emit completion chrome.
             return if event.kind == SemanticNotificationKind::Finished {
                 NotificationValidation::Stale
             } else {

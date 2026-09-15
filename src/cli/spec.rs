@@ -309,8 +309,7 @@ fn notification_command() -> Command {
                     "top-right",
                     "bottom-left",
                     "bottom-right",
-                ]))
-                .arg(option("sound", "SOUND").value_parser(["none", "done", "request"])),
+                ])),
         )
 }
 

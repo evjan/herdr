@@ -1299,8 +1299,6 @@ pub struct TerminalFrame {
 /// Notification kind forwarded from server to client.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NotifyKind {
-    /// Play a sound (bell/agent-done, etc.).
-    Sound,
     /// Display a toast message through the outer terminal.
     Toast,
     /// Display a toast message through the host OS notification service.
@@ -1317,18 +1315,11 @@ pub enum SemanticNotificationKind {
     Custom,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SemanticNotificationSound {
-    Done,
-    Request,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SemanticNotification {
     pub kind: SemanticNotificationKind,
     pub title: String,
     pub body: Option<String>,
-    pub sound: Option<SemanticNotificationSound>,
     pub agent: Option<String>,
     pub workspace_id: Option<String>,
     pub tab_id: Option<String>,
@@ -1368,11 +1359,11 @@ pub enum ServerMessage {
         reason: Option<String>,
     },
 
-    /// A notification event (sound/toast) to be rendered locally by the client.
+    /// A notification event to be rendered locally by the client.
     Notify {
         /// What kind of notification.
         kind: NotifyKind,
-        /// Human-readable title or sound label.
+        /// Human-readable title.
         message: String,
         /// Optional human-readable notification body.
         body: Option<String>,
@@ -1391,7 +1382,7 @@ pub enum ServerMessage {
     },
 
     /// Client-local runtime config changed on disk; refresh it without reconnecting.
-    ReloadSoundConfig,
+    ReloadClientConfig,
 
     /// Whether the client should currently capture host mouse input.
     MouseCapture {
@@ -2580,7 +2571,6 @@ mod tests {
             kind: SemanticNotificationKind::NeedsAttention,
             title: "codex needs attention".into(),
             body: Some("repo · 1".into()),
-            sound: Some(SemanticNotificationSound::Request),
             agent: Some("codex".into()),
             workspace_id: Some("w1".into()),
             tab_id: Some("w1:t1".into()),
@@ -2595,11 +2585,7 @@ mod tests {
 
     #[test]
     fn server_notify_roundtrip() {
-        for kind in [
-            NotifyKind::Sound,
-            NotifyKind::Toast,
-            NotifyKind::SystemToast,
-        ] {
+        for kind in [NotifyKind::Toast, NotifyKind::SystemToast] {
             let msg = ServerMessage::Notify {
                 kind,
                 message: "agent done".to_owned(),
@@ -2661,8 +2647,8 @@ mod tests {
     }
 
     #[test]
-    fn server_reload_sound_config_roundtrip() {
-        let msg = ServerMessage::ReloadSoundConfig;
+    fn server_reload_client_config_roundtrip() {
+        let msg = ServerMessage::ReloadClientConfig;
         let encoded = bincode::serde::encode_to_vec(&msg, bincode::config::standard()).unwrap();
         let (decoded, _): (ServerMessage, _) =
             bincode::serde::decode_from_slice(&encoded, bincode::config::standard()).unwrap();

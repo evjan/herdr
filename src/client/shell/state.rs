@@ -25,7 +25,6 @@ pub(crate) struct ClientShellConfig {
     pub(super) agents: crate::config::AgentsSidebarConfig,
     pub(super) agent_panel_sort: crate::config::AgentPanelSortConfig,
     pub(super) status_indicators: crate::config::StatusIndicatorStyle,
-    pub(super) sound_enabled: bool,
     pub(super) toast_delivery: crate::config::ToastDelivery,
     pub(super) toast_delay_seconds: u64,
     pub(super) toast_position: crate::config::ToastHerdrPosition,
@@ -383,7 +382,6 @@ pub(super) struct ClientGlobalMenuOverlay {
 pub(super) enum ClientSettingsSection {
     Theme,
     Indicators,
-    Sound,
     Toast,
     Integrations,
 }
@@ -392,7 +390,6 @@ impl ClientSettingsSection {
     pub(super) const ALL: &[Self] = &[
         Self::Theme,
         Self::Indicators,
-        Self::Sound,
         Self::Toast,
         Self::Integrations,
     ];
@@ -401,7 +398,6 @@ impl ClientSettingsSection {
         match self {
             Self::Theme => "theme",
             Self::Indicators => "indicators",
-            Self::Sound => "sound",
             Self::Toast => "toasts",
             Self::Integrations => "integrations",
         }
@@ -699,18 +695,8 @@ pub(crate) struct ClientShellEndpointError {
 }
 
 pub(crate) enum ClientShellNotificationEffect {
-    Sound {
-        sound: crate::sound::Sound,
-        agent: Option<String>,
-    },
-    Terminal {
-        title: String,
-        body: Option<String>,
-    },
-    System {
-        title: String,
-        body: Option<String>,
-    },
+    Terminal { title: String, body: Option<String> },
+    System { title: String, body: Option<String> },
 }
 
 pub(super) struct ClientPendingNotification {

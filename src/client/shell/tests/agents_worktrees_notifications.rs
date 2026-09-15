@@ -1333,13 +1333,12 @@ fn semantic_notifications_use_client_policy_and_stable_navigation_targets() {
     state.set_snapshot(Box::new(projected));
     state.set_pane_surface(surface());
     let now = std::time::Instant::now();
-    let (effects, repaint) = state.receive_notification(
+    let (_effects, repaint) = state.receive_notification(
         &ClientEndpointId::Local,
         SemanticNotification {
             kind: SemanticNotificationKind::NeedsAttention,
             title: "codex needs attention".into(),
             body: Some("other · 2".into()),
-            sound: Some(SemanticNotificationSound::Request),
             agent: Some("codex".into()),
             workspace_id: Some("ws_2".into()),
             tab_id: Some("tab_2".into()),
@@ -1349,13 +1348,6 @@ fn semantic_notifications_use_client_policy_and_stable_navigation_targets() {
         now,
     );
     assert!(repaint);
-    assert!(matches!(
-        effects.as_slice(),
-        [ClientShellNotificationEffect::Sound {
-            sound: crate::sound::Sound::Request,
-            ..
-        }]
-    ));
     let frame = state.compose(100, 28).expect("notification frame");
     let rendered = frame
         .cells
@@ -1401,7 +1393,6 @@ fn semantic_notifications_use_client_policy_and_stable_navigation_targets() {
             kind: SemanticNotificationKind::NeedsAttention,
             title: "codex needs attention".into(),
             body: None,
-            sound: None,
             agent: Some("codex".into()),
             workspace_id: Some("ws_2".into()),
             tab_id: Some("tab_2".into()),
@@ -1432,7 +1423,6 @@ fn semantic_notifications_use_client_policy_and_stable_navigation_targets() {
             kind: SemanticNotificationKind::NeedsAttention,
             title: "first".into(),
             body: None,
-            sound: None,
             agent: Some("codex".into()),
             workspace_id: Some("ws_2".into()),
             tab_id: Some("tab_2".into()),
@@ -1449,7 +1439,6 @@ fn semantic_notifications_use_client_policy_and_stable_navigation_targets() {
             kind: SemanticNotificationKind::NeedsAttention,
             title: "replacement".into(),
             body: None,
-            sound: None,
             agent: Some("codex".into()),
             workspace_id: Some("ws_2".into()),
             tab_id: Some("tab_2".into()),

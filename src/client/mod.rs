@@ -115,9 +115,9 @@ use handshake::{client_shell_keybinding_source, do_handshake, is_remote_client_p
 use handshake::{
     direct_graphics_profile_values, handshake_read_timeout, REMOTE_HANDSHAKE_READ_TIMEOUT,
 };
-use notifications::{handle_notify, handle_shell_notification_effects};
 #[cfg(test)]
-use notifications::{handle_notify_with_notifiers, sound_from_notify_message};
+use notifications::handle_notify_with_notifiers;
+use notifications::{handle_notify, handle_shell_notification_effects};
 #[cfg(test)]
 use terminal_sessions::terminal_control_command_from_json;
 
@@ -182,7 +182,6 @@ fn run_client_with_mode(
         .as_ref()
         .is_some_and(shell::ClientShellConfig::uses_endpoint_keybindings);
     let loop_config = ClientLoopConfig {
-        sound_config: loaded_config.config.ui.sound,
         mouse_scroll_lines,
         redraw_on_focus_gained,
         host_cursor,
@@ -397,7 +396,6 @@ async fn run_client_loop(
         keyboard_report_all_active: false,
         reported_size: (cols, rows),
         reported_cell_size: (initial_cell_width_px, initial_cell_height_px),
-        sound_config: config.sound_config,
         kitty_graphics_enabled: config.kitty_graphics_enabled,
         pixel_geometry_enabled: config.pixel_geometry_enabled,
         pixel_geometry_exact: initial_pixel_geometry_exact,
@@ -1591,7 +1589,7 @@ async fn run_client_loop(
                         body,
                     } => {
                         if state.shell.is_none() {
-                            handle_notify(kind, &message, body.as_deref(), &state.sound_config);
+                            handle_notify(kind, &message, body.as_deref());
                         }
                     }
                     ServerMessage::SemanticNotification(event) => {
@@ -1610,7 +1608,7 @@ async fn run_client_loop(
                                     .flatten();
                                 (effects, frame)
                             };
-                            handle_shell_notification_effects(effects, &state.sound_config);
+                            handle_shell_notification_effects(effects);
                             if let Some(frame) = frame {
                                 state.present_frame(frame);
                             }
@@ -1795,7 +1793,7 @@ async fn run_client_loop(
                             title.as_deref(),
                         );
                     }
-                    ServerMessage::ReloadSoundConfig => apply_reload(
+                    ServerMessage::ReloadClientConfig => apply_reload(
                         &mut state,
                         &mut write_stream,
                         &mut pending_activation,
@@ -2096,7 +2094,7 @@ async fn run_client_loop(
                             .flatten();
                         (effects, outcome, frame)
                     };
-                    handle_shell_notification_effects(effects, &state.sound_config);
+                    handle_shell_notification_effects(effects);
                     if finish_client_shell_input(
                         &mut state,
                         outcome,

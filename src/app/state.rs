@@ -1,4 +1,4 @@
-use crate::config::{Keybinds, NewTerminalCwdConfig, SoundConfig, ToastConfig};
+use crate::config::{Keybinds, NewTerminalCwdConfig, ToastConfig};
 use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::layout::Rect;
 use ratatui::style::Color;
@@ -746,7 +746,6 @@ pub struct AgentNotificationDelivery {
     pub kind: ToastKind,
     pub toast: Option<ToastNotification>,
     pub client_notification: Option<ToastNotification>,
-    pub sound: Option<crate::sound::Sound>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -800,7 +799,7 @@ pub struct AppState {
     pub mode: Mode,
     pub should_quit: bool,
     /// Set when the headless server should ask attached clients to reload
-    /// their client-local sound config from disk.
+    /// their client-local config from disk.
     pub request_client_config_reload: bool,
     pub worktree_directory: std::path::PathBuf,
     /// Latest endpoint-owned release notes, cached outside render paths.
@@ -852,7 +851,6 @@ pub struct AppState {
     pub shell_mode: crate::config::ShellModeConfig,
     pub new_terminal_cwd: NewTerminalCwdConfig,
     pub pane_scrollback_limit_bytes: usize,
-    pub sound: SoundConfig,
     pub toast_config: ToastConfig,
     pub keybinds: Keybinds,
     /// UI color palette — all sidebar/UI colors centralized for theming.
@@ -1074,10 +1072,6 @@ impl AppState {
             shell_mode: crate::config::ShellModeConfig::Auto,
             new_terminal_cwd: NewTerminalCwdConfig::Follow,
             pane_scrollback_limit_bytes: crate::config::DEFAULT_SCROLLBACK_LIMIT_BYTES,
-            sound: SoundConfig {
-                enabled: false,
-                ..SoundConfig::default()
-            },
             toast_config: ToastConfig::default(),
             keybinds: Keybinds::default(),
             palette: Palette::catppuccin(),

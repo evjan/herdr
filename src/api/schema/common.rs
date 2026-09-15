@@ -107,25 +107,6 @@ pub struct NotificationShowParams {
     pub body: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub position: Option<crate::config::ToastHerdrPosition>,
-    #[serde(default, skip_serializing_if = "NotificationShowSound::is_none")]
-    pub sound: NotificationShowSound,
-}
-
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum NotificationShowSound {
-    #[default]
-    None,
-    Done,
-    Request,
-}
-
-impl NotificationShowSound {
-    pub fn is_none(&self) -> bool {
-        matches!(self, Self::None)
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]

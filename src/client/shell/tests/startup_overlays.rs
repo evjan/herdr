@@ -546,7 +546,6 @@ fn config_diagnostic_offsets_only_the_pane_rows_it_overlaps() {
             kind: SemanticNotificationKind::Custom,
             title: "notification".into(),
             body: None,
-            sound: None,
             agent: None,
             workspace_id: None,
             tab_id: None,
@@ -625,18 +624,6 @@ fn endpoint_keybindings_hide_only_local_keybinding_diagnostics() {
 
     assert!(config.local_config_diagnostic(&diagnostics[..1]).is_none());
     assert!(config.local_config_diagnostic(&diagnostics).is_some());
-}
-
-#[test]
-fn live_client_config_keeps_sound_diagnostics() {
-    let mut shell_config = ClientShellConfig::from_config(&Config::default());
-    let mut config = Config::default();
-    config.ui.sound.path = Some(std::path::PathBuf::from("invalid.wav"));
-
-    let diagnostics = shell_config.apply_live_config(&config, &[], &[]);
-    assert!(diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.contains("expected an mp3 file")));
 }
 
 #[test]
@@ -1176,7 +1163,7 @@ fn client_settings_preview_restore_and_endpoint_integrations_are_owned_by_overla
 
     state.open_settings_overlay();
     state.compose(106, 30).expect("settings overlay");
-    for _ in 0..3 {
+    for _ in 0..2 {
         let next = state.handle_input_bytes(b"\t");
         assert!(next.actions.is_empty());
     }

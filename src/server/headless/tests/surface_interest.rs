@@ -130,7 +130,6 @@ async fn metadata_only_shell_is_isolated_until_surface_activation() {
                 kind: crate::protocol::SemanticNotificationKind::Custom,
                 title: "metadata event".into(),
                 body: None,
-                sound: None,
                 agent: None,
                 workspace_id: None,
                 tab_id: None,

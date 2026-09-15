@@ -60,74 +60,6 @@ pub fn active_tab_suppresses_notifications(
     is_active_tab && outer_terminal_focus != Some(false)
 }
 
-#[cfg(test)]
-pub fn notification_sound_for_state_change(
-    suppress_active_tab_notifications: bool,
-    prev_state: AgentState,
-    new_state: AgentState,
-) -> Option<crate::sound::Sound> {
-    if new_state == prev_state {
-        return None;
-    }
-
-    match new_state {
-        AgentState::Blocked => Some(crate::sound::Sound::Request),
-        AgentState::Idle
-            if is_background_completion_transition(prev_state, new_state)
-                && !suppress_active_tab_notifications =>
-        {
-            Some(crate::sound::Sound::Done)
-        }
-        _ => None,
-    }
-}
-
-pub fn notification_sound_for_state_change_with_agent_labels(
-    suppress_active_tab_notifications: bool,
-    prev_state: AgentState,
-    new_state: AgentState,
-    previous_agent_label: Option<&str>,
-    agent_label: Option<&str>,
-) -> Option<crate::sound::Sound> {
-    if new_state == prev_state {
-        return None;
-    }
-
-    match new_state {
-        AgentState::Blocked => Some(crate::sound::Sound::Request),
-        AgentState::Idle
-            if is_completion_transition_parts(
-                prev_state,
-                new_state,
-                previous_agent_label,
-                agent_label,
-            ) && !suppress_active_tab_notifications =>
-        {
-            Some(crate::sound::Sound::Done)
-        }
-        _ => None,
-    }
-}
-
-fn notification_sound_for_effective_state_change(
-    suppress_active_tab_notifications: bool,
-    change: &EffectiveStateChange,
-) -> Option<crate::sound::Sound> {
-    if change.state == change.previous_state {
-        return None;
-    }
-
-    match change.state {
-        AgentState::Blocked => Some(crate::sound::Sound::Request),
-        AgentState::Idle
-            if is_completion_transition(change) && !suppress_active_tab_notifications =>
-        {
-            Some(crate::sound::Sound::Done)
-        }
-        _ => None,
-    }
-}
-
 pub fn notification_toast_for_state_change_with_agent_labels(
     suppress_active_tab_notifications: bool,
     prev_state: AgentState,
@@ -199,19 +131,6 @@ fn toast_event_text(kind: ToastKind) -> &'static str {
         ToastKind::NeedsAttention => "needs attention",
         ToastKind::Finished => "finished",
         ToastKind::UpdateInstalled => "updated",
-    }
-}
-
-fn sound_for_toast_kind(
-    kind: ToastKind,
-    suppress_active_tab_notifications: bool,
-) -> Option<crate::sound::Sound> {
-    match kind {
-        ToastKind::NeedsAttention => Some(crate::sound::Sound::Request),
-        ToastKind::Finished if !suppress_active_tab_notifications => {
-            Some(crate::sound::Sound::Done)
-        }
-        ToastKind::Finished | ToastKind::UpdateInstalled => None,
     }
 }
 
@@ -1858,23 +1777,14 @@ impl AppState {
             suppress_active_tab_notifications,
             change,
         );
-        let sound = notification_sound_for_effective_state_change(
-            suppress_active_tab_notifications,
-            change,
-        );
-        if client_notification_kind.is_none() && sound.is_none() {
-            return None;
-        }
+        let client_notification_kind = client_notification_kind?;
 
         let agent_label = change
             .agent_label
             .clone()
             .or_else(|| change.previous_agent_label.clone())?;
         let known_agent = change.known_agent.or(change.previous_known_agent);
-        let kind = client_notification_kind.unwrap_or(match sound {
-            Some(crate::sound::Sound::Request) => ToastKind::NeedsAttention,
-            Some(crate::sound::Sound::Done) | None => ToastKind::Finished,
-        });
+        let kind = client_notification_kind;
         let workspace_id = self.workspaces[ws_idx].id.clone();
 
         if self.toast_config.delay_seconds == 0 {
@@ -1940,8 +1850,6 @@ impl AppState {
         let is_active_tab = self.pane_is_in_active_tab(ws_idx, pane_id);
         let suppress_active_tab_notifications =
             active_tab_suppresses_notifications(is_active_tab, self.outer_terminal_focus);
-        let sound = sound_for_toast_kind(kind, suppress_active_tab_notifications)
-            .filter(|_| self.sound.allows(known_agent));
         let build_toast = || {
             let workspace_label =
                 self.workspaces[ws_idx].display_name_from_terminals(&self.terminals);
@@ -1965,7 +1873,7 @@ impl AppState {
         let toast = (!is_active_tab).then(build_toast);
         let client_notification = (!suppress_active_tab_notifications).then(build_toast);
 
-        if toast.is_none() && client_notification.is_none() && sound.is_none() {
+        if toast.is_none() && client_notification.is_none() {
             return None;
         }
 
@@ -1977,7 +1885,6 @@ impl AppState {
             kind,
             toast,
             client_notification,
-            sound,
         })
     }
 
@@ -3173,30 +3080,6 @@ mod tests {
             .pop()
             .expect("process exit update");
         assert!(!exit_update.suppress_completion);
-    }
-
-    #[test]
-    fn waiting_sound_plays_even_in_active_workspace() {
-        assert_eq!(
-            notification_sound_for_state_change(true, AgentState::Working, AgentState::Blocked),
-            Some(crate::sound::Sound::Request)
-        );
-    }
-
-    #[test]
-    fn done_sound_only_plays_in_background() {
-        assert_eq!(
-            notification_sound_for_state_change(false, AgentState::Working, AgentState::Idle),
-            Some(crate::sound::Sound::Done)
-        );
-        assert_eq!(
-            notification_sound_for_state_change(true, AgentState::Working, AgentState::Idle),
-            None
-        );
-        assert_eq!(
-            notification_sound_for_state_change(false, AgentState::Unknown, AgentState::Idle),
-            None
-        );
     }
 
     #[test]

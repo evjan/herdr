@@ -5,7 +5,7 @@ use serde::{de, Deserialize, Deserializer, Serialize};
 
 use super::{
     ActionKeybinds, BindingConfig, CommandKeybindConfig, IndexedKeybind, Keybinds, SidebarConfig,
-    SoundConfig, TabBarRightEntryConfig, ThemeConfig, DEFAULT_MOBILE_WIDTH_THRESHOLD,
+    TabBarRightEntryConfig, ThemeConfig, DEFAULT_MOBILE_WIDTH_THRESHOLD,
     DEFAULT_MOUSE_SCROLL_LINES, DEFAULT_SCROLLBACK_LIMIT_BYTES,
 };
 
@@ -969,8 +969,6 @@ pub struct UiConfig {
     pub accent: String,
     /// Optional visual toast notifications for background workspace events.
     pub toast: ToastConfig,
-    /// Play sounds when agents change state in background workspaces.
-    pub sound: SoundConfig,
 }
 
 /// Cursor shape (DECSCUSR) used for the forced IME anchor.
@@ -1189,7 +1187,6 @@ impl Default for UiConfig {
             sidebar: SidebarConfig::default(),
             accent: "cyan".into(),
             toast: ToastConfig::default(),
-            sound: SoundConfig::default(),
         }
     }
 }

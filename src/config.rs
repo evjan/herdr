@@ -4,7 +4,6 @@ mod io;
 mod keybinds;
 mod model;
 mod sidebar;
-mod sound;
 mod tab_bar;
 mod theme;
 mod window_title;
@@ -32,7 +31,6 @@ pub use self::{
         AgentSidebarToken, AgentsSidebarConfig, SidebarConfig, SidebarTokenStyle,
         SpaceSidebarToken, SpacesSidebarConfig,
     },
-    sound::SoundConfig,
     tab_bar::TabBarRightEntryConfig,
     theme::{parse_color, CustomThemeColors, ModeThemeColors, ThemeConfig, THEME_NAMES},
     window_title::{WindowTitlePart, WindowTitleTemplate, WindowTitleToken},
@@ -118,7 +116,6 @@ impl Config {
             .chain(keybind_diags)
             .chain(self.remote_image_paste_key().err())
             .chain(self.theme.diagnostics())
-            .chain(self.ui.sound.diagnostics())
             .chain(tab_bar_right_diagnostics(&self.ui.tab_bar_right))
             .chain(window_title_diagnostics(&self.ui.window_title))
             .chain(self.invalid_sidebar_bounds_diagnostic())

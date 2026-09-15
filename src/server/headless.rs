@@ -95,13 +95,6 @@ use crate::server::client_transport::ClientWriter;
 #[cfg(test)]
 use std::fs;
 
-fn sound_notify_message(sound: crate::sound::Sound) -> &'static str {
-    match sound {
-        crate::sound::Sound::Done => "agent done",
-        crate::sound::Sound::Request => "agent attention",
-    }
-}
-
 fn notification_show_result(
     id: String,
     shown: bool,
@@ -1621,7 +1614,7 @@ impl HeadlessServer {
             return;
         }
         self.app.state.request_client_config_reload = false;
-        self.send_to_all_clients(ServerMessage::ReloadSoundConfig);
+        self.send_to_all_clients(ServerMessage::ReloadClientConfig);
     }
 
     /// Encodes a server message into a length-prefixed frame.
@@ -3042,7 +3035,6 @@ impl HeadlessServer {
         // forward resulting client-local notifications. API requests like
         // pane.report_agent trigger handle_internal_event internally, which
         // bypasses drain_internal_events_with_forwarding. Headless mode disables
-        // local sound playback, so sound notifications need to be forwarded here.
         let toast_before = self.app.state.toast.clone();
         let pane_states_before: Vec<(
             usize,
@@ -3202,7 +3194,6 @@ impl HeadlessServer {
 
         // Forward notifications for effective pane state changes that occurred
         // during the API request. Hook authority is already folded into
-        // pane.state, so raw hook transitions must not produce separate sounds.
         for (ws_idx, pane_id, prev_state, prev_agent_label) in &pane_states_before {
             let pane_after = self
                 .app
@@ -3295,27 +3286,7 @@ impl HeadlessServer {
                 }
             }
 
-            // Forward sound notification when server-side sound policy allows it.
             // Clients still decide locally whether they can execute the side effect.
-            if self.app.state.toast_config.delay_seconds == 0 && self.app.state.sound.allows(agent)
-            {
-                if let Some(sound) =
-                    crate::app::actions::notification_sound_for_state_change_with_agent_labels(
-                        suppress_active_tab_notifications,
-                        *prev_state,
-                        new_state,
-                        prev_agent_label.as_deref(),
-                        agent_label.as_deref(),
-                    )
-                {
-                    debug!(sound = ?sound, "forwarding sound notification from API request");
-                    self.send_notify_to_foreground_client(
-                        protocol::NotifyKind::Sound,
-                        sound_notify_message(sound),
-                        None,
-                    );
-                }
-            }
         }
 
         if !skip_default_workspace && latest_shell_client(&self.clients).is_some() {

@@ -17,7 +17,6 @@ pub(super) struct ClientState {
     pub(super) keyboard_report_all_active: bool,
     pub(super) reported_size: (u16, u16),
     pub(super) reported_cell_size: (u32, u32),
-    pub(super) sound_config: crate::config::SoundConfig,
     pub(super) kitty_graphics_enabled: bool,
     pub(super) pixel_geometry_enabled: bool,
     pub(super) pixel_geometry_exact: bool,

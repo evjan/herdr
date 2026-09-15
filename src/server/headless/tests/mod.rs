@@ -5934,8 +5934,8 @@ fn client_config_reload_request_refreshes_attached_clients() {
             .recv_timeout(Duration::from_millis(100))
             .expect("client config reload message"),
     ) {
-        ServerMessage::ReloadSoundConfig => {}
-        other => panic!("expected ReloadSoundConfig, got {other:?}"),
+        ServerMessage::ReloadClientConfig => {}
+        other => panic!("expected ReloadClientConfig, got {other:?}"),
     }
     assert!(!server.app.state.request_client_config_reload);
 }
@@ -6128,7 +6128,6 @@ fn semantic_notifications_broadcast_only_to_client_shells() {
         kind: protocol::SemanticNotificationKind::Custom,
         title: "hello".into(),
         body: None,
-        sound: None,
         agent: None,
         workspace_id: None,
         tab_id: None,
@@ -6173,7 +6172,6 @@ fn notification_show_uses_client_shell_policy_independent_of_server_delivery() {
             title: "plugin title".into(),
             body: Some("plugin body".into()),
             position: Some(crate::config::ToastHerdrPosition::TopLeft),
-            sound: api::schema::NotificationShowSound::Done,
         },
     );
     let response: api::schema::SuccessResponse = serde_json::from_str(&response).unwrap();
@@ -6191,7 +6189,6 @@ fn notification_show_uses_client_shell_policy_independent_of_server_delivery() {
             kind: protocol::SemanticNotificationKind::Custom,
             title: "plugin title".into(),
             body: Some("plugin body".into()),
-            sound: Some(protocol::SemanticNotificationSound::Done),
             agent: None,
             workspace_id: None,
             tab_id: None,
@@ -6456,7 +6453,6 @@ fn notification_show_api_forwards_one_semantic_client_notification() {
                 title: "build failed".into(),
                 body: Some("api workspace".into()),
                 position: Some(crate::config::ToastHerdrPosition::TopLeft),
-                sound: api::schema::NotificationShowSound::Request,
             }),
         },
         respond_to,
@@ -6484,10 +6480,6 @@ fn notification_show_api_forwards_one_semantic_client_notification() {
         ServerMessage::SemanticNotification(notification) => {
             assert_eq!(notification.title, "build failed");
             assert_eq!(notification.body.as_deref(), Some("api workspace"));
-            assert_eq!(
-                notification.sound,
-                Some(protocol::SemanticNotificationSound::Request)
-            );
         }
         other => panic!("expected semantic api notification, got {other:?}"),
     }
@@ -6519,7 +6511,6 @@ fn notification_show_api_preserves_colon_in_forwarded_title() {
                 title: "build: failed".into(),
                 body: Some("api workspace".into()),
                 position: None,
-                sound: api::schema::NotificationShowSound::None,
             }),
         },
         respond_to,
@@ -6565,7 +6556,6 @@ fn notification_show_api_validates_empty_title_before_disabled_delivery() {
                 title: "\n\t".into(),
                 body: None,
                 position: None,
-                sound: api::schema::NotificationShowSound::None,
             }),
         },
         respond_to,
@@ -6596,7 +6586,6 @@ fn notification_show_api_reports_no_foreground_client() {
                 title: "build failed".into(),
                 body: None,
                 position: None,
-                sound: api::schema::NotificationShowSound::Request,
             }),
         },
         respond_to,
@@ -6619,7 +6608,7 @@ fn notification_show_api_reports_no_foreground_client() {
 }
 
 #[test]
-fn notification_show_api_includes_sound_in_semantic_event() {
+fn notification_show_api_emits_semantic_event() {
     let mut server = test_headless_server();
     let (client_tx, client_control_rx, _client_rx) = test_client_writer();
 
@@ -6646,7 +6635,6 @@ fn notification_show_api_includes_sound_in_semantic_event() {
                         title: "build failed".into(),
                         body: None,
                         position: None,
-                        sound: api::schema::NotificationShowSound::Done,
                     },
                 ),
             },
@@ -6674,10 +6662,6 @@ fn notification_show_api_includes_sound_in_semantic_event() {
     ) {
         ServerMessage::SemanticNotification(notification) => {
             assert_eq!(notification.title, "build failed");
-            assert_eq!(
-                notification.sound,
-                Some(protocol::SemanticNotificationSound::Done)
-            );
         }
         other => panic!("expected semantic api notification, got {other:?}"),
     }
@@ -6693,7 +6677,6 @@ fn startup_idle_does_not_forward_completion() {
     server.app.state.active = Some(0);
     server.app.state.toast_config.delivery = crate::config::ToastDelivery::System;
     server.app.state.toast_config.delay_seconds = 0;
-    server.app.state.sound.enabled = true;
 
     assert!(
         server.handle_internal_event_with_forwarding(AppEvent::AgentProcessDetected {
@@ -6741,7 +6724,7 @@ fn startup_idle_does_not_forward_completion() {
 }
 
 #[test]
-fn stale_api_agent_report_does_not_forward_done_sound() {
+fn stale_api_agent_report_does_not_forward_done_notification() {
     let mut server = test_headless_server();
     let background = crate::workspace::Workspace::test_new("background");
     let pane_id = background.tabs[0].root_pane;
@@ -6843,7 +6826,7 @@ fn stale_api_agent_report_does_not_forward_done_sound() {
         client_control_rx
             .recv_timeout(Duration::from_millis(50))
             .is_err(),
-        "stale idle report must not forward a done sound"
+        "stale idle report must not forward a done notification"
     );
 }
 

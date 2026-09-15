@@ -115,7 +115,6 @@ fn notifications_and_clipboard_feedback_only_cover_their_drawn_corners() {
                     kind: SemanticNotificationKind::Custom,
                     title: "notice".into(),
                     body: Some("body".into()),
-                    sound: None,
                     agent: None,
                     workspace_id: None,
                     tab_id: None,

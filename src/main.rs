@@ -51,7 +51,6 @@ mod render_signal;
 mod selection;
 mod server;
 mod session;
-mod sound;
 mod terminal;
 mod terminal_effects;
 mod terminal_modes;
@@ -374,19 +373,6 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 [ui.toast.clipboard]
 # enabled = true
 # position = "bottom-center"
-
-# Play sounds when agents change state in background workspaces
-[ui.sound]
-# enabled = true
-# Optional custom mp3 sound files. Relative paths are resolved from this config file's directory.
-# path = "sounds/notification.mp3"   # one mp3 file for all sound notifications
-# done_path = "sounds/done.mp3"      # overrides only finished notifications
-# request_path = "sounds/request.mp3" # overrides only needs-attention notifications
-
-# Per-agent overrides: default | on | off
-# By default, droid is muted.
-# [ui.sound.agents]
-# droid = "off"
 
 [session]
 # Resume supported AI-agent panes into their native conversation sessions after

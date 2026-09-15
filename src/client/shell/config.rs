@@ -125,7 +125,6 @@ impl ClientShellConfig {
             agents: config.ui.sidebar.agents.clone(),
             agent_panel_sort: config.ui.agent_panel_sort,
             status_indicators: config.ui.status_indicators,
-            sound_enabled: config.ui.sound.enabled,
             toast_delivery: config.ui.toast.delivery,
             toast_delay_seconds: config.ui.toast.delay_seconds,
             toast_position: config.ui.toast.herdr.position,
@@ -315,7 +314,6 @@ impl ClientShellConfig {
                 diagnostics.push(format!("{diagnostic}; keeping previous [ui] settings"));
             } else {
                 let ui = &config.ui;
-                diagnostics.extend(ui.sound.diagnostics());
                 self.sidebar_width = ui.sidebar_width;
                 self.sidebar_min_width = ui.sidebar_min_width;
                 self.sidebar_max_width = ui.sidebar_max_width;
@@ -327,7 +325,6 @@ impl ClientShellConfig {
                 self.agents = ui.sidebar.agents.clone();
                 self.agent_panel_sort = ui.agent_panel_sort;
                 self.status_indicators = ui.status_indicators;
-                self.sound_enabled = ui.sound.enabled;
                 self.toast_delivery = ui.toast.delivery;
                 self.toast_delay_seconds = ui.toast.delay_seconds;
                 self.toast_position = ui.toast.herdr.position;

@@ -1,4 +1,4 @@
-use crate::api::schema::{Method, NotificationShowParams, NotificationShowSound, Request};
+use crate::api::schema::{Method, NotificationShowParams, Request};
 use crate::config::ToastHerdrPosition;
 
 pub(super) fn run_notification_command(args: &[String]) -> std::io::Result<i32> {
@@ -25,7 +25,7 @@ fn notification_show(args: &[String]) -> std::io::Result<i32> {
         Ok(params) => params,
         Err(NotificationShowArgError::Usage) => {
             eprintln!(
-                "usage: herdr notification show <title> [--body TEXT] [--position top-left|top-right|bottom-left|bottom-right] [--sound none|done|request]"
+                "usage: herdr notification show <title> [--body TEXT] [--position top-left|top-right|bottom-left|bottom-right]"
             );
             return Ok(2);
         }
@@ -59,7 +59,6 @@ fn parse_notification_show_args(
 
     let mut body = None;
     let mut position = None;
-    let mut sound = NotificationShowSound::None;
     let mut index = 1;
     while index < args.len() {
         match args[index].as_str() {
@@ -81,15 +80,6 @@ fn parse_notification_show_args(
                 position = Some(parse_toast_position(value)?);
                 index += 2;
             }
-            "--sound" => {
-                let Some(value) = args.get(index + 1) else {
-                    return Err(NotificationShowArgError::Message(
-                        "missing value for --sound".into(),
-                    ));
-                };
-                sound = parse_notification_sound(value)?;
-                index += 2;
-            }
             other => {
                 return Err(NotificationShowArgError::Message(format!(
                     "unknown option: {other}"
@@ -102,7 +92,6 @@ fn parse_notification_show_args(
         title,
         body,
         position,
-        sound,
     })
 }
 
@@ -118,23 +107,10 @@ fn parse_toast_position(value: &str) -> Result<ToastHerdrPosition, NotificationS
     }
 }
 
-fn parse_notification_sound(
-    value: &str,
-) -> Result<NotificationShowSound, NotificationShowArgError> {
-    match value {
-        "none" => Ok(NotificationShowSound::None),
-        "done" => Ok(NotificationShowSound::Done),
-        "request" => Ok(NotificationShowSound::Request),
-        _ => Err(NotificationShowArgError::Message(format!(
-            "invalid sound: {value} (expected none, done, or request)"
-        ))),
-    }
-}
-
 fn print_notification_help() {
     eprintln!("herdr notification commands:");
     eprintln!(
-        "  herdr notification show <title> [--body TEXT] [--position top-left|top-right|bottom-left|bottom-right] [--sound none|done|request]"
+        "  herdr notification show <title> [--body TEXT] [--position top-left|top-right|bottom-left|bottom-right]"
     );
 }
 
@@ -154,8 +130,6 @@ mod tests {
             "api workspace",
             "--position",
             "top-right",
-            "--sound",
-            "request",
         ]))
         .unwrap();
 
@@ -165,7 +139,6 @@ mod tests {
                 title: "build failed".into(),
                 body: Some("api workspace".into()),
                 position: Some(ToastHerdrPosition::TopRight),
-                sound: NotificationShowSound::Request,
             }
         );
     }
@@ -181,26 +154,6 @@ mod tests {
             NotificationShowArgError::Message(
                 "invalid position: top-center (expected top-left, top-right, bottom-left, or bottom-right)"
                     .into()
-            )
-        );
-    }
-
-    #[test]
-    fn notification_show_args_default_sound_is_none() {
-        let params = parse_notification_show_args(&args(&["build failed"])).unwrap();
-
-        assert_eq!(params.sound, NotificationShowSound::None);
-    }
-
-    #[test]
-    fn notification_show_args_reject_invalid_sound() {
-        let error =
-            parse_notification_show_args(&args(&["build failed", "--sound", "loud"])).unwrap_err();
-
-        assert_eq!(
-            error,
-            NotificationShowArgError::Message(
-                "invalid sound: loud (expected none, done, or request)".into()
             )
         );
     }
