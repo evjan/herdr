@@ -317,7 +317,6 @@ pub struct Config {
     pub worktrees: WorktreesConfig,
     pub advanced: AdvancedConfig,
     pub experimental: ExperimentalConfig,
-    pub remote: RemoteConfig,
 }
 
 #[derive(Debug)]
@@ -1011,22 +1010,6 @@ pub struct AdvancedConfig {
     /// Maximum scrollback buffer size in bytes retained per pane terminal. Default: 10000000.
     #[serde(alias = "scrollback_lines")]
     pub scrollback_limit_bytes: usize,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(default)]
-pub struct RemoteConfig {
-    /// Add keepalive fallbacks and private connection reuse for `herdr --remote`.
-    /// Set false to run plain ssh unchanged. Default: true.
-    pub manage_ssh_config: bool,
-}
-
-impl Default for RemoteConfig {
-    fn default() -> Self {
-        Self {
-            manage_ssh_config: true,
-        }
-    }
 }
 
 #[derive(Debug, Default, Deserialize)]

@@ -30,27 +30,15 @@ use super::{shell, ClientError};
 /// window; on a high-latency link that easily exceeds 5s, so it gets a far
 /// larger budget. See issue #753.
 pub(super) const LOCAL_HANDSHAKE_READ_TIMEOUT: Duration = Duration::from_secs(5);
-pub(super) const REMOTE_HANDSHAKE_READ_TIMEOUT: Duration = Duration::from_secs(60);
-
-pub(super) fn is_remote_client_process() -> bool {
-    std::env::var(crate::remote::REMOTE_KEYBINDINGS_ENV_VAR).is_ok()
-}
+/// An endpoint shell that has no surface yet waits on the server's first full
+/// projection, which can take far longer than a plain attach handshake.
+pub(super) const ENDPOINT_HANDSHAKE_READ_TIMEOUT: Duration = Duration::from_secs(60);
 
 pub(super) fn client_shell_keybinding_source() -> shell::ClientShellKeybindingSource {
-    match std::env::var(crate::remote::REMOTE_KEYBINDINGS_ENV_VAR)
-        .ok()
-        .as_deref()
-    {
-        Some("server") => shell::ClientShellKeybindingSource::Endpoint,
-        Some(_) => shell::ClientShellKeybindingSource::RemoteLocal,
-        None => shell::ClientShellKeybindingSource::Local,
-    }
+    shell::ClientShellKeybindingSource::Local
 }
 
 pub(super) fn handshake_read_timeout() -> Duration {
-    if is_remote_client_process() {
-        return REMOTE_HANDSHAKE_READ_TIMEOUT;
-    }
     LOCAL_HANDSHAKE_READ_TIMEOUT
 }
 
@@ -77,10 +65,7 @@ fn direct_graphics_profile_allowed() -> bool {
         &term_program,
         &term,
         std::env::var_os("KITTY_WINDOW_ID").is_some(),
-        is_remote_client_process()
-            || is_ssh_session()
-            || std::env::var_os("TMUX").is_some()
-            || std::env::var_os("STY").is_some(),
+        is_ssh_session() || std::env::var_os("TMUX").is_some() || std::env::var_os("STY").is_some(),
         io::stdin().is_terminal() && io::stdout().is_terminal(),
     )
 }
@@ -122,28 +107,6 @@ pub(super) struct HandshakeResult {
     pub(super) encoding: RenderEncoding,
     pub(super) endpoint_methods: Option<Vec<String>>,
     pub(super) endpoint_capabilities: Option<Vec<String>>,
-}
-
-pub(crate) fn probe_endpoint_negotiation(
-    stream: &mut LocalStream,
-) -> io::Result<super::endpoint::EndpointNegotiation> {
-    let handshake = do_handshake(
-        stream,
-        80,
-        24,
-        0,
-        0,
-        false,
-        Some(crate::protocol::ClientSurfaceSize { cols: 80, rows: 24 }),
-        false,
-        false,
-        false,
-    )
-    .map_err(io::Error::other)?;
-    Ok(super::endpoint::EndpointNegotiation::new(
-        handshake.endpoint_methods.unwrap_or_default(),
-        handshake.endpoint_capabilities.unwrap_or_default(),
-    ))
 }
 
 /// Performs the client→server handshake.
@@ -208,7 +171,7 @@ pub(super) fn do_handshake(
         .map_err(|e| ClientError::ConnectionFailed(io::Error::other(e.to_string())))?;
 
     let read_timeout = if endpoint_shell && !surface_active {
-        REMOTE_HANDSHAKE_READ_TIMEOUT
+        ENDPOINT_HANDSHAKE_READ_TIMEOUT
     } else {
         handshake_read_timeout()
     };

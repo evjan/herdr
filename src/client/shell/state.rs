@@ -971,16 +971,7 @@ impl ClientShellState {
         if let Some(sort) = preferences.agent_panel_sort {
             config.agent_panel_sort = sort;
         }
-        let mut remote_collapsed_groups = HashMap::<ClientEndpointId, HashSet<String>>::new();
-        for saved in preferences.remote_collapsed_groups {
-            let Ok(profile_id) = crate::client::endpoint::ProfileId::parse(saved.profile_id) else {
-                continue;
-            };
-            remote_collapsed_groups
-                .entry(ClientEndpointId::Ssh(profile_id))
-                .or_default()
-                .extend(saved.collapsed_groups);
-        }
+        let remote_collapsed_groups = HashMap::<ClientEndpointId, HashSet<String>>::new();
         Self {
             config,
             snapshot: None,
@@ -1249,11 +1240,8 @@ impl ClientShellState {
         snapshot
             .commands
             .retain(|command| command.action != crate::protocol::ClientShellCommandAction::Unknown);
-        let graphics_scope = match &self.active_endpoint_id {
-            // Local direct uploads use image IDs authored by the server from its boot ID.
-            ClientEndpointId::Local => snapshot.boot_id.clone(),
-            endpoint_id => format!("{}:{}", endpoint_id.storage_key(), snapshot.boot_id),
-        };
+        // Local direct uploads use image IDs authored by the server from its boot ID.
+        let graphics_scope = snapshot.boot_id.clone();
         let endpoint_boot_changed =
             self.snapshot.is_some() && self.graphics.scope() != graphics_scope;
         let generation_changed = self.active_snapshot_generation != generation;

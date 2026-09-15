@@ -268,7 +268,7 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let listener = crate::ipc::bind_private_local_listener(&path).unwrap();
+        let listener = crate::ipc::bind_local_listener(&path).unwrap();
         let accepting = std::thread::spawn(move || listener.accept().unwrap());
         let client = crate::ipc::connect_local_stream(&path).unwrap();
         (client, accepting.join().unwrap(), path)

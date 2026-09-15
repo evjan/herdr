@@ -268,30 +268,6 @@ impl PendingEndpointActivation {
         now >= self.deadline
     }
 
-    #[cfg(test)]
-    pub(crate) fn receive_response(
-        &mut self,
-        endpoint_id: &ClientEndpointId,
-        generation: u64,
-        request_id: &str,
-        data: &[u8],
-        endpoints: &mut EndpointRegistry,
-    ) -> SurfaceActivationProgress {
-        let boot_id = if self.source.endpoint_id == *endpoint_id {
-            self.source.boot_id.clone()
-        } else {
-            self.target.boot_id.clone()
-        };
-        self.receive_response_for_boot(
-            endpoint_id,
-            generation,
-            &boot_id,
-            request_id,
-            data,
-            endpoints,
-        )
-    }
-
     pub(crate) fn receive_response_for_boot(
         &mut self,
         endpoint_id: &ClientEndpointId,

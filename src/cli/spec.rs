@@ -3,7 +3,6 @@ use std::io::Write;
 use clap::{Arg, ArgAction, ArgGroup, Command, ValueHint};
 
 mod completion;
-mod machine;
 
 pub(super) fn command() -> Command {
     let command = Command::new("herdr")
@@ -12,14 +11,7 @@ pub(super) fn command() -> Command {
         .disable_version_flag(true)
         .arg(help_flag())
         .arg(option("session", "NAME").help("Use or create a named persistent session"))
-        .arg(option("machine", "LABEL-OR-ID").help("Run an API command on a saved SSH machine"))
-        .arg(option("remote", "TARGET").help("Attach through SSH to a remote Herdr server"))
-        .arg(
-            option("remote-keybindings", "MODE")
-                .value_parser(["local", "server"])
-                .help("Choose local or server keybindings for remote attach"),
-        )
-        .arg(flag("handoff").help("Opt into live handoff for update or remote attach"))
+        .arg(flag("handoff").help("Opt into live handoff when updating"))
         .arg(flag("default-config").help("Print default configuration and exit"))
         .arg(flag("skill").help("Print the agent skill file and exit"))
         .arg(
@@ -34,7 +26,6 @@ pub(super) fn command() -> Command {
         .subcommand(status_command())
         .subcommand(config_command())
         .subcommand(channel_command())
-        .subcommand(machine::command())
         .subcommand(server_command())
         .subcommand(api_command())
         .subcommand(workspace_command())

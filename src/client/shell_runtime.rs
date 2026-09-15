@@ -432,79 +432,17 @@ pub(super) fn rollback_endpoint_activation(
     }
 }
 
-pub(super) fn handle_endpoint_disconnect(
-    state: &mut ClientState,
-    endpoints: &mut endpoint::EndpointRegistry,
-    endpoint_commands: &mut endpoint_commands::EndpointCommands,
-    supervisors: &mut endpoint::EndpointSupervisors,
-    pending_activation: &mut Option<endpoint::PendingEndpointActivation>,
-    endpoint_id: &endpoint::ClientEndpointId,
-    generation: u64,
-    now: std::time::Instant,
-    notice: &str,
-) -> bool {
-    supervisors.disconnected(endpoint_id, generation, now);
-    #[cfg(unix)]
-    state.retire_endpoint_graphics(endpoint_id);
-    if pending_activation
-        .as_ref()
-        .is_some_and(|pending| pending.involves_endpoint(endpoint_id))
-    {
-        let outcome = pending_activation
-            .as_mut()
-            .expect("checked pending activation")
-            .endpoint_disconnected(
-                endpoints,
-                endpoint_id,
-                format!("endpoint connection was lost while activating {notice}"),
-            );
-        match outcome {
-            endpoint::ActivationRollback::Pending => {}
-            endpoint::ActivationRollback::Unavailable(error) => {
-                *pending_activation = None;
-                present_handoff_unavailable(state, error);
-            }
-        }
-    }
-    let endpoint_was_active = endpoints.active_id() == endpoint_id;
-    let cancelled = endpoint_commands.disconnect(endpoint_id);
-    let unavailable = state.shell.as_mut().and_then(|shell| {
-        for request_id in cancelled {
-            shell.cancel_endpoint_request(&request_id);
-        }
-        shell.mark_endpoint_disconnected(endpoint_id);
-        endpoint_was_active.then(|| format!("{} {notice}", shell.endpoint_label(endpoint_id)))
-    });
-    if let Some(message) = unavailable {
-        present_handoff_unavailable(state, message);
-    } else if let Some(frame) = state
-        .shell
-        .as_mut()
-        .and_then(|shell| shell.compose(state.reported_size.0, state.reported_size.1))
-    {
-        state.present_frame(frame);
-    }
-    endpoint_was_active
-}
-
 pub(super) fn handle_endpoint_attention(
     state: &mut ClientState,
     endpoints: &mut endpoint::EndpointRegistry,
     endpoint_commands: &mut endpoint_commands::EndpointCommands,
-    supervisors: &mut endpoint::EndpointSupervisors,
     pending_activation: &mut Option<endpoint::PendingEndpointActivation>,
     endpoint_id: &endpoint::ClientEndpointId,
-    generation: u64,
-    now: std::time::Instant,
+    _generation: u64,
+    _now: std::time::Instant,
     message: String,
 ) -> bool {
     endpoints.disconnect(endpoint_id);
-    supervisors.record_status(
-        endpoint_id,
-        generation,
-        endpoint::ClientEndpointStatus::Attention,
-        now,
-    );
     #[cfg(unix)]
     state.retire_endpoint_graphics(endpoint_id);
     if pending_activation

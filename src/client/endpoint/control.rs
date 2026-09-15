@@ -67,7 +67,6 @@ pub(crate) fn protocol_failure_is_fatal(endpoint_id: &ClientEndpointId) -> bool 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client::endpoint::ProfileId;
 
     #[test]
     fn unknown_optional_controls_are_ignored() {
@@ -142,13 +141,5 @@ mod tests {
                 .as_deref(),
             Some("unsupported mandatory endpoint snapshot codec \"shell.snapshot.v2\"")
         );
-    }
-
-    #[test]
-    fn only_local_protocol_failures_end_the_client() {
-        let remote =
-            ClientEndpointId::Ssh(ProfileId::parse("0123456789abcdef0123456789abcdef").unwrap());
-        assert!(protocol_failure_is_fatal(&ClientEndpointId::Local));
-        assert!(!protocol_failure_is_fatal(&remote));
     }
 }
