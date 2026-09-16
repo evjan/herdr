@@ -3325,7 +3325,7 @@ mod tests {
             .terminals
             .get_mut(&source_terminal)
             .unwrap()
-            .set_detected_state(Some(Agent::Pi), AgentState::Idle);
+            .set_detected_state(Some(Agent::Codex), AgentState::Idle);
         let previous_pane_id = app.public_pane_id(0, source).unwrap();
         let previous_workspace_id = app.public_workspace_id(0);
         let target_workspace_id = app.public_workspace_id(1);
@@ -4440,18 +4440,18 @@ mod tests {
             .terminals
             .get_mut(&terminal_id)
             .unwrap()
-            .set_detected_state(Some(Agent::Pi), AgentState::Idle);
+            .set_detected_state(Some(Agent::Codex), AgentState::Idle);
 
         let mut initial = metadata_params(pane_id.clone());
         initial.source = "custom:pi-metadata".into();
-        initial.agent = Some("pi".into());
+        initial.agent = Some("codex".into());
         initial.seq = Some(100);
         let response = app.handle_pane_report_metadata("initial".into(), initial);
         let _: SuccessResponse = serde_json::from_str(&response).unwrap();
 
         let mut initial_tokens = metadata_params(pane_id.clone());
         initial_tokens.source = "custom:pi-tokens".into();
-        initial_tokens.agent = Some("pi".into());
+        initial_tokens.agent = Some("codex".into());
         initial_tokens.title = None;
         initial_tokens.tokens =
             std::collections::HashMap::from([("generation".into(), Some("old".into()))]);
@@ -4465,7 +4465,7 @@ mod tests {
             .get_mut(&terminal_id)
             .unwrap()
             .set_detected_state_with_screen_signals_at(
-                Some(Agent::Pi),
+                Some(Agent::Codex),
                 AgentState::Idle,
                 false,
                 false,
@@ -4489,14 +4489,14 @@ mod tests {
 
         let mut stale = metadata_params(pane_id.clone());
         stale.source = "custom:pi-metadata".into();
-        stale.agent = Some("pi".into());
+        stale.agent = Some("codex".into());
         stale.title = Some("stale".into());
         stale.seq = Some(200);
         let response = app.handle_pane_report_metadata("stale".into(), stale);
         let _: SuccessResponse = serde_json::from_str(&response).unwrap();
 
         let mut official = metadata_params(pane_id.clone());
-        official.source = "herdr:pi".into();
+        official.source = "herdr:codex".into();
         official.seq = Some(200);
         let response = app.handle_pane_report_metadata("official".into(), official);
         let _: SuccessResponse = serde_json::from_str(&response).unwrap();
@@ -4504,14 +4504,14 @@ mod tests {
         let terminal = &app.state.terminals[&terminal_id];
         assert!(terminal.metadata_report_sequence_is_fresh("custom:pi-metadata", Some(1)));
         assert!(terminal.metadata_report_sequence_is_fresh("custom:pi-tokens", Some(1)));
-        assert!(terminal.metadata_report_sequence_is_fresh("herdr:pi", Some(1)));
+        assert!(terminal.metadata_report_sequence_is_fresh("herdr:codex", Some(1)));
 
         app.state
             .terminals
             .get_mut(&terminal_id)
             .unwrap()
             .set_detected_state_with_screen_signals_at(
-                Some(Agent::Pi),
+                Some(Agent::Codex),
                 AgentState::Idle,
                 false,
                 false,
@@ -4521,7 +4521,7 @@ mod tests {
             );
         let mut fresh = metadata_params(pane_id.clone());
         fresh.source = "custom:pi-metadata".into();
-        fresh.agent = Some("pi".into());
+        fresh.agent = Some("codex".into());
         fresh.title = Some("fresh".into());
         fresh.seq = Some(1);
         let response = app.handle_pane_report_metadata("fresh".into(), fresh);
@@ -4529,7 +4529,7 @@ mod tests {
 
         let mut fresh_tokens = metadata_params(pane_id);
         fresh_tokens.source = "custom:pi-tokens".into();
-        fresh_tokens.agent = Some("pi".into());
+        fresh_tokens.agent = Some("codex".into());
         fresh_tokens.title = None;
         fresh_tokens.tokens =
             std::collections::HashMap::from([("generation".into(), Some("new".into()))]);

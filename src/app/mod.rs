@@ -957,7 +957,7 @@ mod tests {
         app.state.toast_config.delivery = crate::config::ToastDelivery::Herdr;
         app.state.toast = Some(crate::app::state::ToastNotification {
             kind: crate::app::state::ToastKind::NeedsAttention,
-            title: "pi needs attention".to_string(),
+            title: "codex needs attention".to_string(),
             context: "background · 2".to_string(),
             position: None,
             target: None,
@@ -985,7 +985,7 @@ mod tests {
         );
         assert_eq!(
             app.state.toast.as_ref().map(|toast| toast.title.as_str()),
-            Some("pi needs attention")
+            Some("codex needs attention")
         );
     }
 
@@ -2012,7 +2012,7 @@ mod tests {
             .get_mut(&attached_terminal_id)
             .unwrap()
             .set_detected_state(
-                Some(crate::detect::Agent::Pi),
+                Some(crate::detect::Agent::Codex),
                 crate::detect::AgentState::Idle,
             );
         app.state.active = Some(0);
@@ -2062,7 +2062,7 @@ mod tests {
         app.state.ensure_test_terminals();
         let terminal = app.state.terminals.get_mut(&terminal_id).unwrap();
         terminal.set_detected_state(
-            Some(crate::detect::Agent::Pi),
+            Some(crate::detect::Agent::Codex),
             crate::detect::AgentState::Idle,
         );
         terminal.set_agent_name("p_1".into());
@@ -2306,7 +2306,7 @@ mod tests {
             id: "req_agent_start_target".into(),
             method: crate::api::schema::Method::AgentStart(crate::api::schema::AgentStartParams {
                 name: "worker".into(),
-                kind: "pi".into(),
+                kind: "codex".into(),
                 pane_id,
                 args: Vec::new(),
                 timeout_ms: Some(1_000),

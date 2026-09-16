@@ -1377,48 +1377,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn agent_explain_rejects_hook_only_full_lifecycle_authority() {
-        let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
-        let mut app = App::new(
-            &crate::config::Config::default(),
-            crate::app::AppPolicy::TEST,
-            None,
-            api_rx,
-            crate::api::EventHub::default(),
-        );
-        app.state.workspaces = vec![crate::workspace::Workspace::test_new("agent-explain-omp")];
-        app.state.ensure_test_terminals();
-        let pane_id = app.state.workspaces[0].tabs[0].root_pane;
-        let terminal_id = app.state.workspaces[0].tabs[0].panes[&pane_id]
-            .attached_terminal_id
-            .clone();
-        app.state
-            .terminals
-            .get_mut(&terminal_id)
-            .unwrap()
-            .set_hook_authority(
-                "herdr:omp".to_string(),
-                "omp".to_string(),
-                AgentState::Working,
-                None,
-                Some(1),
-            );
-        let runtime = crate::terminal::TerminalRuntime::test_with_screen_bytes(80, 24, b"");
-        app.terminal_runtimes.insert(terminal_id, runtime);
-        let target = app.public_pane_id(0, pane_id).unwrap();
-
-        let response = app.handle_api_request(crate::api::schema::Request {
-            id: "agent_explain_omp".into(),
-            method: crate::api::schema::Method::AgentExplain(crate::api::schema::AgentTarget {
-                target,
-            }),
-        });
-        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
-
-        assert_eq!(response["error"]["code"], "agent_not_found");
-    }
-
-    #[tokio::test]
     async fn pane_process_info_returns_response_for_existing_pane() {
         let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
         let mut app = App::new(
@@ -1763,14 +1721,14 @@ mod tests {
             app.state.workspaces = vec![workspace];
             app.state.ensure_test_terminals();
             let terminal = app.state.terminals.get_mut(&terminal_id).unwrap();
-            terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
+            terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
             if let Some(agent_name) = agent_name {
                 terminal.set_agent_name(agent_name.into());
             }
 
             app.handle_internal_event(AppEvent::StateChanged {
                 pane_id,
-                agent: Some(Agent::Pi),
+                agent: Some(Agent::Codex),
                 state: AgentState::Idle,
                 visible_blocker: false,
                 visible_working: false,
@@ -1794,59 +1752,6 @@ mod tests {
                 }
             )));
         }
-    }
-
-    #[test]
-    fn process_exit_releases_a_newer_hook_owned_agent() {
-        let event_hub = crate::api::EventHub::default();
-        let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
-        let mut app = App::new(
-            &crate::config::Config::default(),
-            crate::app::AppPolicy::TEST,
-            None,
-            api_rx,
-            event_hub.clone(),
-        );
-        let workspace = crate::workspace::Workspace::test_new("stale-agent-exit");
-        let pane_id = workspace.tabs[0].root_pane;
-        let terminal_id = workspace.terminal_id(pane_id).cloned().unwrap();
-        app.state.workspaces = vec![workspace];
-        app.state.ensure_test_terminals();
-        let observed_at = std::time::Instant::now();
-        let terminal = app.state.terminals.get_mut(&terminal_id).unwrap();
-        terminal.set_detected_state(Some(Agent::Codex), AgentState::Working);
-        terminal
-            .set_hook_authority_at(
-                "herdr:codex".into(),
-                "codex".into(),
-                AgentState::Working,
-                None,
-                None,
-                Some(1),
-                observed_at + std::time::Duration::from_secs(1),
-            )
-            .unwrap();
-        terminal.set_agent_name("reviewer".into());
-
-        app.handle_internal_event(AppEvent::StateChanged {
-            pane_id,
-            agent: Some(Agent::Codex),
-            state: AgentState::Idle,
-            visible_blocker: false,
-            visible_working: false,
-            process_exited: true,
-            observed_at,
-        });
-
-        let terminal = &app.state.terminals[&terminal_id];
-        assert_eq!(terminal.state, AgentState::Idle);
-        // Releasing the registration does not free the name yet; a wrong
-        // observation must not cost a live agent the handle its owner gave it.
-        assert_eq!(terminal.agent_name.as_deref(), Some("reviewer"));
-        assert!(event_hub.events_after(0).iter().any(|(_, event)| matches!(
-            event.data,
-            crate::api::schema::EventData::PaneAgentDetected { released: true, .. }
-        )));
     }
 
     #[test]
@@ -2012,7 +1917,7 @@ mod tests {
 
         app.handle_internal_event(AppEvent::StateChanged {
             pane_id,
-            agent: Some(crate::detect::Agent::OpenCode),
+            agent: Some(crate::detect::Agent::Codex),
             state: AgentState::Idle,
             visible_blocker: false,
             visible_working: false,

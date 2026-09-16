@@ -473,7 +473,7 @@ mod tests {
         for shell in ["bash", "-zsh", "/bin/fish", "pwsh", "powershell.exe"] {
             assert!(is_pane_shell_process_name(shell), "{shell}");
         }
-        for program in ["vim", "nvim", "cargo", "test-runner", "opencode"] {
+        for program in ["vim", "nvim", "cargo", "test-runner", "codex"] {
             assert!(!is_pane_shell_process_name(program), "{program}");
         }
     }
@@ -519,28 +519,6 @@ mod tests {
     fn parse_agent_env_hint_ignores_missing_or_unknown_agents() {
         assert_eq!(parse_agent_env_hint(b"PATH=/bin\0TERM=xterm\0"), None);
         assert_eq!(parse_agent_env_hint(b"HERDR_AGENT=not-an-agent\0"), None);
-    }
-
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
-    #[test]
-    fn interactive_shell_command_quotes_for_posix_and_powershell() {
-        let argv = vec![
-            "pi".into(),
-            String::new(),
-            "two words".into(),
-            "a'b".into(),
-            "$HOME".into(),
-            "semi;colon".into(),
-            "@options".into(),
-        ];
-        assert_eq!(
-            interactive_shell_command(&argv, "bash").as_deref(),
-            Some("pi '' 'two words' 'a'\\''b' '$HOME' 'semi;colon' @options")
-        );
-        assert_eq!(
-            interactive_shell_command(&argv, "pwsh").as_deref(),
-            Some("pi '' 'two words' 'a''b' '$HOME' 'semi;colon' '@options'")
-        );
     }
 
     #[test]

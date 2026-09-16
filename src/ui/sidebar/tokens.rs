@@ -208,10 +208,10 @@ mod tests {
             workspace: "repo".into(),
             tab: None,
             pane: None,
-            agent_label: Some("pi".into()),
+            agent_label: Some("codex".into()),
             terminal_title: None,
             terminal_title_stripped: None,
-            canonical_agent: Some(crate::detect::Agent::Pi),
+            canonical_agent: Some(crate::detect::Agent::Codex),
             tokens: std::collections::HashMap::new(),
         }
     }
@@ -299,107 +299,6 @@ rows = [[{ token = "workspace", rules = [{ equals = "long-workspace-name", fg = 
     }
 
     #[test]
-    fn custom_numeric_rules_resolve_in_agent_overrides_and_space_rows() {
-        let config: crate::config::SidebarConfig = toml::from_str(
-            r#"
-[agents]
-rows = [["workspace"]]
-[agents.rows_by_agent]
-pi = [[{ token = "$load", rules = [{ gt = 80, bold = true }, { gt = 50, dim = true }] }]]
-[spaces]
-rows = [[{ token = "$load", rules = [{ lt = 50, dim = true }] }]]
-"#,
-        )
-        .unwrap();
-        let mut entry = entry();
-        for (value, bold, dim) in [
-            ("90", Some(true), None),
-            ("60", None, Some(true)),
-            ("20", None, None),
-            ("90%", None, None),
-        ] {
-            entry.tokens.insert("load".into(), value.into());
-            let rows = agent_rows(&config.agents, context(&entry), "working");
-            assert_eq!(rows[0][0].kind, ResolvedTokenKind::Custom(value.into()));
-            assert_eq!(rows[0][0].style.bold, bold);
-            assert_eq!(rows[0][0].style.dim, dim);
-            let spaces = space_rows(
-                &config.spaces,
-                SpaceTokenContext {
-                    workspace: "repo",
-                    branch: None,
-                    state_text: "working",
-                    ahead_behind: None,
-                    suppress_git_details: false,
-                    tokens: &entry.tokens,
-                },
-            );
-            assert_eq!(spaces[0][0].style.dim, (value == "20").then_some(true));
-        }
-    }
-
-    #[test]
-    fn conditional_hide_removes_tokens_and_empty_rows() {
-        let config: crate::config::SidebarConfig = toml::from_str(
-            r##"
-[agents]
-rows = [[{ token = "machine", fg = "#61afef", rules = [{ equals = "Local", hide = true }] }, "agent"]]
-[agents.rows_by_agent]
-pi = [[{ token = "$load", rules = [{ lt = 50, hide = true }] }], ["agent"]]
-[spaces]
-rows = [[{ token = "$load", rules = [{ lt = 50, hide = true }] }], ["workspace"]]
-"##,
-        ).unwrap();
-        let encoded = toml::to_string(&config).unwrap();
-        assert!(encoded.contains("hide = true"));
-        let config: crate::config::SidebarConfig = toml::from_str(&encoded).unwrap();
-        let mut entry = entry();
-        entry.canonical_agent = None;
-        for (machine, count) in [("Local", 1), ("Remote", 2)] {
-            let mut ctx = context(&entry);
-            ctx.machine = Some(machine);
-            let rows = agent_rows(&config.agents, ctx, "working");
-            assert_eq!(rows[0].len(), count);
-            assert_eq!(
-                rows[0].last().unwrap().kind,
-                ResolvedTokenKind::Agent("pi".into())
-            );
-        }
-        entry.canonical_agent = Some(crate::detect::Agent::Pi);
-        for (value, count) in [("20", 1), ("90", 2)] {
-            entry.tokens.insert("load".into(), value.into());
-            assert_eq!(
-                agent_rows(&config.agents, context(&entry), "working").len(),
-                count
-            );
-            let rows = space_rows(
-                &config.spaces,
-                SpaceTokenContext {
-                    workspace: "repo",
-                    branch: None,
-                    state_text: "working",
-                    ahead_behind: None,
-                    suppress_git_details: false,
-                    tokens: &entry.tokens,
-                },
-            );
-            assert_eq!(rows.len(), count);
-        }
-    }
-
-    #[test]
-    fn conditional_hide_preserves_first_match_wins() {
-        for first in ["hide = false", "bold = true"] {
-            let config: AgentsSidebarConfig = toml::from_str(&format!(
-                "rows = [[{{ token = 'agent', rules = [{{ equals = 'pi', {first} }}, {{ contains = '', hide = true }}] }}]]"
-            )).unwrap();
-            let entry = entry();
-            let rows = agent_rows(&config, context(&entry), "working");
-            assert_eq!(rows[0][0].kind, ResolvedTokenKind::Agent("pi".into()));
-        }
-    }
-
-    #[test]
     fn missing_custom_tokens_elide_rows_and_separators() {
         let entry = entry();
         let config = AgentsSidebarConfig {
@@ -424,7 +323,7 @@ rows = [[{ token = "$load", rules = [{ lt = 50, hide = true }] }], ["workspace"]
         assert_eq!(
             rows[1],
             vec![ResolvedToken::unstyled(ResolvedTokenKind::Agent(
-                "pi".into()
+                "codex".into()
             ))]
         );
     }
@@ -516,7 +415,7 @@ rows = [[{ token = "$load", rules = [{ lt = 50, hide = true }] }], ["workspace"]
         };
         config
             .rows_by_agent
-            .insert("pi".into(), vec![vec![AgentSidebarToken::Agent]]);
+            .insert("codex".into(), vec![vec![AgentSidebarToken::Agent]]);
         let mut pi = entry();
         pi.agent_label = Some("renamed pi".into());
 

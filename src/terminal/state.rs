@@ -897,7 +897,7 @@ impl TerminalState {
                 .as_ref()
                 .is_none_or(|incoming| incoming == anchored)
         });
-        let opencode_cross_talk = (source, agent_label) == ("herdr:opencode", "opencode")
+        let opencode_cross_talk = (source, agent_label) == ("herdr:codex", "codex")
             && process_present
             && anchored_session_ref
                 .zip(session_ref.as_ref())
@@ -1299,7 +1299,7 @@ impl TerminalState {
         session_ref: &crate::agent_resume::AgentSessionRef,
     ) -> bool {
         self.hook_authority.is_none()
-            && (source, agent_label) == ("herdr:mastracode", "mastracode")
+            && (source, agent_label) == ("herdr:codex", "codex")
             && self
                 .persisted_agent_session
                 .as_ref()
@@ -1327,22 +1327,7 @@ impl TerminalState {
                 "herdr:codex",
                 "codex",
                 Some("startup" | "clear" | "resume" | "compact")
-            ) | ("herdr:mastracode", "mastracode", Some("startup"))
-                | ("herdr:hermes", "hermes", Some("startup" | "new" | "resume"))
-                | ("herdr:opencode", "opencode", Some("select"))
-                | ("herdr:pi", "pi", Some("new" | "resume" | "fork"))
-                | ("herdr:grok", "grok", Some("new"))
-                | (
-                    "herdr:omp",
-                    "omp",
-                    Some("startup" | "new" | "resume" | "fork")
-                )
-                | (
-                    "herdr:qwen",
-                    "qwen",
-                    Some("startup" | "clear" | "resume" | "compact" | "branch")
-                )
-                | ("herdr:antigravity_cli", "agy", None)
+            )
         )
     }
 
@@ -1360,7 +1345,7 @@ impl TerminalState {
         seq: Option<u64>,
     ) -> bool {
         (source, agent_label, session_start_source, seq)
-            == ("herdr:opencode", "opencode", Some("select"), None)
+            == ("herdr:codex", "codex", Some("select"), None)
     }
 
     pub fn set_persisted_agent_session(
@@ -1636,7 +1621,7 @@ impl TerminalState {
         session_ref: &crate::agent_resume::AgentSessionRef,
         session_start_source: Option<&str>,
     ) -> bool {
-        (source, agent_label) != ("herdr:grok", "grok")
+        (source, agent_label) != ("herdr:codex", "codex")
             && Self::session_start_source_is_recognized(session_start_source)
             && self.foreground_agent_confirms_session_owner(source, agent_label, session_ref)
     }
@@ -1680,16 +1665,6 @@ impl TerminalState {
 
         self.hook_report_sequences.insert(source.to_string(), seq);
         true
-    }
-
-    #[cfg(test)]
-    pub fn clear_hook_authority(
-        &mut self,
-        source: Option<&str>,
-        seq: Option<u64>,
-    ) -> Option<EffectiveStateChange> {
-        self.clear_hook_authority_with_mutation(source, seq)
-            .and_then(|mutation| mutation.effective_state_change)
     }
 
     pub fn clear_hook_authority_with_mutation(
@@ -2234,22 +2209,22 @@ mod tests {
         let now = Instant::now();
         terminal.begin_managed_agent(
             "reviewer".into(),
-            Agent::Pi,
+            Agent::Codex,
             now,
             Duration::from_millis(100),
             Duration::from_secs(1),
         );
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Unknown);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Unknown);
 
         assert!(terminal.managed_agent_launch_pending());
         assert!(!terminal.managed_agent_interactive_ready());
         assert!(terminal.reconcile_managed_agent_at(now + Duration::from_millis(100), false));
         assert!(terminal.managed_agent_launch_pending());
 
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Working);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Working);
         assert!(!terminal.reconcile_managed_agent_at(now + Duration::from_millis(101), false));
 
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Blocked);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Blocked);
         assert!(terminal.reconcile_managed_agent_at(now + Duration::from_millis(102), false));
         assert!(terminal.managed_agent_launch_pending());
         assert!(!terminal.managed_agent_interactive_ready());
@@ -2258,7 +2233,7 @@ mod tests {
         assert!(!terminal.reconcile_managed_agent_at(now + Duration::from_secs(2), false));
         assert_eq!(terminal.agent_name.as_deref(), Some("reviewer"));
 
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         assert!(terminal.reconcile_managed_agent_at(now + Duration::from_secs(2), false));
         assert!(!terminal.managed_agent_launch_pending());
         assert!(terminal.managed_agent_interactive_ready());
@@ -2269,41 +2244,6 @@ mod tests {
         assert_eq!(terminal.agent_name.as_deref(), Some("reviewer"));
         assert!(terminal.reconcile_managed_agent_at(now + Duration::from_secs(2), true));
         assert_eq!(terminal.agent_name, None);
-    }
-
-    #[test]
-    fn managed_agent_mismatch_and_timeout_release_name() {
-        let now = Instant::now();
-        let mut mismatch = test_terminal();
-        mismatch.begin_managed_agent(
-            "reviewer".into(),
-            Agent::Pi,
-            now,
-            Duration::ZERO,
-            Duration::from_secs(1),
-        );
-        mismatch.set_detected_state(Some(Agent::Codex), AgentState::Idle);
-        assert!(mismatch.reconcile_managed_agent_at(now, false));
-        assert_eq!(mismatch.agent_name, None);
-        assert_eq!(mismatch.managed_agent_kind(), None);
-
-        let mut timed_out = test_terminal();
-        timed_out.begin_managed_agent(
-            "reviewer".into(),
-            Agent::Pi,
-            now,
-            Duration::from_millis(10),
-            Duration::from_millis(20),
-        );
-        timed_out.set_managed_agent_launch_session(crate::agent_resume::PersistedAgentSession {
-            source: "herdr:codex".into(),
-            agent: "codex".into(),
-            session_ref: crate::agent_resume::AgentSessionRef::id("codex-session").unwrap(),
-        });
-        assert!(timed_out.reconcile_managed_agent_at(now + Duration::from_millis(20), false));
-        assert_eq!(timed_out.agent_name, None);
-        assert_eq!(timed_out.managed_agent_kind(), None);
-        assert!(timed_out.persisted_agent_session.is_none());
     }
 
     #[test]
@@ -2320,34 +2260,9 @@ mod tests {
     }
 
     #[test]
-    fn hook_authority_overrides_fallback_for_same_agent() {
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::Pi,
-            "herdr:pi",
-            "pi",
-            crate::agent_resume::AgentSessionRef::path(test_session_path("root.jsonl")).unwrap(),
-        );
-        terminal.set_hook_authority(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            None,
-        );
-
-        assert_eq!(terminal.detected_agent, Some(Agent::Pi));
-        assert_eq!(terminal.fallback_state, AgentState::Idle);
-        assert_eq!(terminal.effective_agent_label(), Some("pi"));
-        assert_eq!(terminal.state, AgentState::Working);
-    }
-
-    #[test]
     fn hook_authority_can_override_with_unknown_agent_label() {
         let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         terminal.set_hook_authority(
             "herdr:custom".into(),
             "custom-agent".into(),
@@ -2356,359 +2271,9 @@ mod tests {
             None,
         );
 
-        assert_eq!(terminal.detected_agent, Some(Agent::Pi));
+        assert_eq!(terminal.detected_agent, Some(Agent::Codex));
         assert_eq!(terminal.effective_agent_label(), Some("custom-agent"));
         assert_eq!(terminal.effective_known_agent(), None);
-        assert_eq!(terminal.state, AgentState::Working);
-    }
-
-    #[test]
-    fn omp_hook_authority_overrides_detected_fallback() {
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Omp), AgentState::Idle);
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::Omp,
-            "herdr:omp",
-            "omp",
-            crate::agent_resume::AgentSessionRef::id("omp-root").unwrap(),
-        );
-        terminal.set_hook_authority(
-            "herdr:omp".into(),
-            "omp".into(),
-            AgentState::Working,
-            None,
-            None,
-        );
-
-        assert_eq!(terminal.detected_agent, Some(Agent::Omp));
-        assert_eq!(terminal.effective_agent_label(), Some("omp"));
-        assert_eq!(terminal.effective_known_agent(), Some(Agent::Omp));
-        assert_eq!(terminal.state, AgentState::Working);
-
-        let change = terminal.set_detected_state_with_visible_blocker(
-            Some(Agent::Omp),
-            AgentState::Blocked,
-            true,
-            false,
-            false,
-        );
-
-        assert_eq!(terminal.fallback_state, AgentState::Idle);
-        assert_eq!(terminal.state, AgentState::Working);
-        assert!(change.is_none());
-    }
-
-    #[test]
-    fn session_only_report_does_not_create_hook_authority() {
-        for (agent, source, label, session_id) in [
-            (Agent::Codex, "herdr:codex", "codex", "codex-session"),
-            (Agent::Devin, "herdr:devin", "devin", "devin-session"),
-        ] {
-            let mut terminal = test_terminal();
-            terminal.set_detected_state(Some(agent), AgentState::Idle);
-
-            let mutation = terminal.set_agent_session_ref(
-                source.into(),
-                label.into(),
-                crate::agent_resume::AgentSessionRef::id(session_id),
-                Some(1),
-            );
-
-            assert!(mutation.is_some());
-            assert!(terminal.hook_authority.is_none());
-            assert!(!terminal.full_lifecycle_hook_authority_active());
-            assert_eq!(terminal.state, AgentState::Idle);
-
-            terminal.set_detected_state_with_screen_signals_at(
-                Some(agent),
-                AgentState::Working,
-                false,
-                false,
-                false,
-                false,
-                Instant::now(),
-            );
-
-            assert_eq!(terminal.state, AgentState::Working);
-        }
-    }
-
-    #[test]
-    fn startup_session_claim_activates_full_lifecycle_integrations() {
-        for (agent, source, label) in [
-            (Agent::Kimi, "herdr:kimi", "kimi"),
-            (Agent::Kilo, "herdr:kilo", "kilo"),
-        ] {
-            let mut terminal = test_terminal();
-            terminal.set_detected_state(Some(agent), AgentState::Idle);
-            let session_ref = crate::agent_resume::AgentSessionRef::id(format!("{label}-root"));
-
-            let session = terminal.set_agent_session_ref_for_session_start(
-                source.into(),
-                label.into(),
-                session_ref.clone(),
-                Some(10),
-                Some("startup".into()),
-            );
-            let working = terminal.set_hook_authority_with_session_ref(
-                source.into(),
-                label.into(),
-                AgentState::Working,
-                None,
-                session_ref,
-                Some(11),
-            );
-
-            assert!(
-                session.is_some(),
-                "{label} should accept its startup session"
-            );
-            assert!(
-                working.is_some(),
-                "{label} should accept state after startup"
-            );
-            assert_eq!(terminal.state, AgentState::Working);
-        }
-    }
-
-    #[test]
-    fn session_identity_claims_leave_state_to_detection() {
-        for (source, label, agent, start_source, replacement_source) in [
-            (
-                "herdr:hermes",
-                "hermes",
-                Agent::Hermes,
-                Some("startup"),
-                Some("resume"),
-            ),
-            (
-                "herdr:antigravity_cli",
-                "agy",
-                Agent::Antigravity,
-                None,
-                None,
-            ),
-        ] {
-            let mut terminal = test_terminal();
-            terminal.set_detected_state(Some(agent), AgentState::Idle);
-            let first_ref =
-                crate::agent_resume::AgentSessionRef::id(format!("{label}-root")).unwrap();
-            let first = terminal.set_agent_session_ref_for_session_start(
-                source.into(),
-                label.into(),
-                Some(first_ref.clone()),
-                Some(10),
-                start_source.map(str::to_string),
-            );
-
-            assert!(first.is_some(), "{label} should accept its session");
-            assert!(terminal.hook_authority.is_none());
-            assert_eq!(terminal.state, AgentState::Idle);
-            assert_eq!(
-                terminal
-                    .persisted_agent_session
-                    .as_ref()
-                    .map(|session| &session.session_ref),
-                Some(&first_ref)
-            );
-
-            terminal.set_detected_state(Some(agent), AgentState::Working);
-            let replacement_ref =
-                crate::agent_resume::AgentSessionRef::id(format!("{label}-replacement")).unwrap();
-            let replacement = terminal.set_agent_session_ref_for_session_start(
-                source.into(),
-                label.into(),
-                Some(replacement_ref.clone()),
-                Some(11),
-                start_source.map(str::to_string),
-            );
-
-            assert!(
-                replacement.is_some_and(|mutation| mutation.session_ref_changed),
-                "{label} should replace its detected session"
-            );
-            assert!(terminal.hook_authority.is_none());
-            assert_eq!(terminal.state, AgentState::Working);
-            assert_eq!(
-                terminal
-                    .persisted_agent_session
-                    .as_ref()
-                    .map(|session| &session.session_ref),
-                Some(&replacement_ref)
-            );
-
-            let legacy_state = terminal.set_hook_authority_with_session_ref(
-                source.into(),
-                label.into(),
-                AgentState::Blocked,
-                None,
-                Some(replacement_ref.clone()),
-                Some(12),
-            );
-            assert!(legacy_state.is_none());
-            assert!(terminal.hook_authority.is_none());
-            assert_eq!(terminal.state, AgentState::Working);
-
-            terminal.set_detected_state(None, AgentState::Unknown);
-            let background_ref =
-                crate::agent_resume::AgentSessionRef::id(format!("{label}-background")).unwrap();
-            let background_replacement = terminal.set_agent_session_ref_for_session_start(
-                source.into(),
-                label.into(),
-                Some(background_ref.clone()),
-                Some(13),
-                replacement_source.map(str::to_string),
-            );
-            assert!(
-                background_replacement.is_none(),
-                "{label} should reject a background replacement"
-            );
-            assert_eq!(
-                terminal
-                    .persisted_agent_session
-                    .as_ref()
-                    .map(|session| &session.session_ref),
-                Some(&replacement_ref)
-            );
-
-            terminal.set_detected_state(Some(agent), AgentState::Idle);
-            let retried_replacement = terminal.set_agent_session_ref_for_session_start(
-                source.into(),
-                label.into(),
-                Some(background_ref.clone()),
-                Some(14),
-                replacement_source.map(str::to_string),
-            );
-            assert!(
-                retried_replacement.is_some_and(|mutation| mutation.session_ref_changed),
-                "{label} should replace the session once detected"
-            );
-            assert_eq!(
-                terminal
-                    .persisted_agent_session
-                    .as_ref()
-                    .map(|session| &session.session_ref),
-                Some(&background_ref)
-            );
-        }
-    }
-
-    #[test]
-    fn pi_session_replacement_reports_reanchor_full_lifecycle_authority() {
-        for reason in ["new", "resume", "fork"] {
-            let mut terminal = test_terminal();
-            let old_session = test_session_path(&format!("pi-{reason}-old.jsonl"));
-            let new_session = test_session_path(&format!("pi-{reason}-new.jsonl"));
-            terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
-            terminal.set_hook_authority_with_session_ref(
-                "herdr:pi".into(),
-                "pi".into(),
-                AgentState::Idle,
-                None,
-                crate::agent_resume::AgentSessionRef::path(old_session),
-                Some(10),
-            );
-
-            let session_report = terminal.set_agent_session_ref_for_session_start(
-                "herdr:pi".into(),
-                "pi".into(),
-                crate::agent_resume::AgentSessionRef::path(new_session.clone()),
-                Some(11),
-                Some(reason.into()),
-            );
-
-            assert!(
-                session_report.is_some(),
-                "{reason} should replace the previous Pi session"
-            );
-            assert!(terminal.hook_authority.is_none());
-
-            let working = terminal.set_hook_authority_with_session_ref(
-                "herdr:pi".into(),
-                "pi".into(),
-                AgentState::Working,
-                None,
-                crate::agent_resume::AgentSessionRef::path(new_session.clone()),
-                Some(12),
-            );
-
-            assert!(
-                working.is_some(),
-                "{reason} should accept working for the replacement session"
-            );
-            assert_eq!(terminal.state, AgentState::Working);
-            assert_eq!(
-                terminal.hook_authority.as_ref().unwrap().session_ref,
-                crate::agent_resume::AgentSessionRef::path(new_session)
-            );
-        }
-    }
-
-    #[test]
-    fn pi_resume_reactivates_a_previously_stale_session() {
-        let mut terminal = test_terminal();
-        let session_a = test_session_path("pi-session-a.jsonl");
-        let session_b = test_session_path("pi-session-b.jsonl");
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
-        terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Idle,
-            None,
-            crate::agent_resume::AgentSessionRef::path(session_a.clone()),
-            Some(10),
-        );
-
-        terminal.set_agent_session_ref_for_session_start(
-            "herdr:pi".into(),
-            "pi".into(),
-            crate::agent_resume::AgentSessionRef::path(session_b.clone()),
-            Some(11),
-            Some("new".into()),
-        );
-        terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Idle,
-            None,
-            crate::agent_resume::AgentSessionRef::path(session_b.clone()),
-            Some(12),
-        );
-
-        let resumed = terminal.set_agent_session_ref_for_session_start(
-            "herdr:pi".into(),
-            "pi".into(),
-            crate::agent_resume::AgentSessionRef::path(session_a.clone()),
-            Some(13),
-            Some("resume".into()),
-        );
-        let working = terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::path(session_a.clone()),
-            Some(14),
-        );
-
-        assert!(resumed.is_some());
-        assert!(working.is_some());
-        assert_eq!(terminal.state, AgentState::Working);
-        assert_eq!(
-            terminal.hook_authority.as_ref().unwrap().session_ref,
-            crate::agent_resume::AgentSessionRef::path(session_a)
-        );
-
-        let late_session_b = terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Idle,
-            None,
-            crate::agent_resume::AgentSessionRef::path(session_b),
-            Some(15),
-        );
-        assert!(late_session_b.is_none());
         assert_eq!(terminal.state, AgentState::Working);
     }
 
@@ -2717,17 +2282,17 @@ mod tests {
         let mut terminal = test_terminal();
         let old_session = test_session_path("pi-startup-old.jsonl");
         let new_session = test_session_path("pi-startup-new.jsonl");
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         terminal.set_persisted_agent_session(crate::agent_resume::PersistedAgentSession {
-            source: "herdr:pi".into(),
-            agent: "pi".into(),
+            source: "herdr:codex".into(),
+            agent: "codex".into(),
             session_ref: crate::agent_resume::AgentSessionRef::path(old_session)
                 .expect("test session path should be valid"),
         });
 
         let startup = terminal.set_agent_session_ref_for_session_start(
-            "herdr:pi".into(),
-            "pi".into(),
+            "herdr:codex".into(),
+            "codex".into(),
             crate::agent_resume::AgentSessionRef::path(new_session.clone()),
             Some(11),
             Some("startup".into()),
@@ -2737,125 +2302,12 @@ mod tests {
         assert_eq!(
             terminal.current_session_identity_for_persistence(),
             Some((
-                "herdr:pi".into(),
-                "pi".into(),
+                "herdr:codex".into(),
+                "codex".into(),
                 crate::agent_resume::AgentSessionRefKind::Path,
                 new_session,
             ))
         );
-    }
-
-    #[test]
-    fn pi_non_replacement_reports_preserve_full_lifecycle_authority() {
-        for reason in [None, Some("reload"), Some("startup")] {
-            let mut terminal = test_terminal();
-            let old_session = test_session_path("pi-current.jsonl");
-            let new_session = test_session_path("pi-unexpected.jsonl");
-            terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
-            anchor_full_lifecycle_session(
-                &mut terminal,
-                Agent::Pi,
-                "herdr:pi",
-                "pi",
-                crate::agent_resume::AgentSessionRef::path(old_session.clone()).unwrap(),
-            );
-            terminal.set_hook_authority_with_session_ref(
-                "herdr:pi".into(),
-                "pi".into(),
-                AgentState::Idle,
-                None,
-                crate::agent_resume::AgentSessionRef::path(old_session.clone()),
-                Some(10),
-            );
-
-            let session_report = terminal.set_agent_session_ref_for_session_start(
-                "herdr:pi".into(),
-                "pi".into(),
-                crate::agent_resume::AgentSessionRef::path(new_session.clone()),
-                Some(11),
-                reason.map(str::to_string),
-            );
-            let working = terminal.set_hook_authority_with_session_ref(
-                "herdr:pi".into(),
-                "pi".into(),
-                AgentState::Working,
-                None,
-                crate::agent_resume::AgentSessionRef::path(new_session),
-                Some(12),
-            );
-
-            assert!(session_report.is_none());
-            assert!(working.is_none());
-            assert_eq!(terminal.state, AgentState::Idle);
-            assert_eq!(
-                terminal.hook_authority.as_ref().unwrap().session_ref,
-                crate::agent_resume::AgentSessionRef::path(old_session),
-                "{reason:?} must not replace the current Pi session"
-            );
-        }
-    }
-
-    #[test]
-    fn omp_resume_session_report_reanchors_full_lifecycle_authority() {
-        let mut terminal = test_terminal();
-        let old_session = test_session_path("omp-old.jsonl");
-        let new_session = test_session_path("omp-new.jsonl");
-        terminal.set_detected_state(Some(Agent::Omp), AgentState::Idle);
-        terminal.set_hook_authority_with_session_ref(
-            "herdr:omp".into(),
-            "omp".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::path(old_session.clone()),
-            Some(10),
-        );
-
-        let session_report = terminal.set_agent_session_ref_for_session_start(
-            "herdr:omp".into(),
-            "omp".into(),
-            crate::agent_resume::AgentSessionRef::path(new_session.clone()),
-            Some(11),
-            Some("resume".into()),
-        );
-
-        assert!(session_report.is_some());
-        assert!(terminal.hook_authority.is_none());
-        assert_eq!(
-            terminal
-                .persisted_agent_session
-                .as_ref()
-                .unwrap()
-                .session_ref,
-            crate::agent_resume::AgentSessionRef::path(new_session.clone()).unwrap()
-        );
-
-        let blocked = terminal.set_hook_authority_with_session_ref(
-            "herdr:omp".into(),
-            "omp".into(),
-            AgentState::Blocked,
-            Some("waiting".into()),
-            crate::agent_resume::AgentSessionRef::path(new_session.clone()),
-            Some(12),
-        );
-
-        assert!(blocked.is_some());
-        assert_eq!(terminal.state, AgentState::Blocked);
-        assert_eq!(
-            terminal.hook_authority.as_ref().unwrap().session_ref,
-            crate::agent_resume::AgentSessionRef::path(new_session)
-        );
-
-        let stale = terminal.set_hook_authority_with_session_ref(
-            "herdr:omp".into(),
-            "omp".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::path(old_session),
-            Some(13),
-        );
-
-        assert!(stale.is_none());
-        assert_eq!(terminal.state, AgentState::Blocked);
     }
 
     #[test]
@@ -2864,10 +2316,10 @@ mod tests {
         let now = Instant::now();
         let mut terminal = test_terminal();
         let session_path = test_session_path("pi.jsonl");
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Working);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Working);
         terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
-            "pi".into(),
+            "herdr:codex".into(),
+            "codex".into(),
             AgentState::Working,
             None,
             crate::agent_resume::AgentSessionRef::path(session_path.clone()),
@@ -2875,7 +2327,7 @@ mod tests {
         );
 
         terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
+            Some(Agent::Codex),
             AgentState::Idle,
             false,
             true,
@@ -2884,8 +2336,8 @@ mod tests {
             now + Duration::from_millis(1),
         );
         let late = terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
-            "pi".into(),
+            "herdr:codex".into(),
+            "codex".into(),
             AgentState::Working,
             None,
             crate::agent_resume::AgentSessionRef::path(session_path),
@@ -2898,203 +2350,6 @@ mod tests {
     }
 
     #[test]
-    fn live_full_lifecycle_hook_rejects_different_session_ref_for_same_source() {
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::Pi,
-            "herdr:pi",
-            "pi",
-            crate::agent_resume::AgentSessionRef::path(test_session_path("one.jsonl")).unwrap(),
-        );
-        terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::path(test_session_path("one.jsonl")),
-            Some(20),
-        );
-
-        let mutation = terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Idle,
-            None,
-            crate::agent_resume::AgentSessionRef::path(test_session_path("two.jsonl")),
-            Some(21),
-        );
-
-        assert!(mutation.is_none());
-        assert_eq!(terminal.state, AgentState::Working);
-        assert_eq!(
-            terminal
-                .hook_authority
-                .as_ref()
-                .and_then(|authority| authority.session_ref.as_ref())
-                .map(|session_ref| session_ref.value.as_str()),
-            Some(test_session_path("one.jsonl").as_str())
-        );
-    }
-
-    #[test]
-    fn fresh_detected_process_keeps_old_session_suppressed_after_process_exit() {
-        let mut terminal = test_terminal();
-        let old_session = test_session_path("old-process-exit.jsonl");
-        let new_session = test_session_path("new-process-exit.jsonl");
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
-        terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::path(old_session.clone()),
-            Some(1000),
-        );
-        let process_exit_seen_at = Instant::now() + Duration::from_secs(1);
-        terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
-            AgentState::Idle,
-            false,
-            true,
-            false,
-            true,
-            process_exit_seen_at,
-        );
-
-        let fresh_process_seen_at = process_exit_seen_at + Duration::from_millis(1);
-        terminal.set_detected_state_with_screen_signals_at(
-            None,
-            AgentState::Unknown,
-            false,
-            false,
-            false,
-            false,
-            fresh_process_seen_at,
-        );
-        terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
-            AgentState::Unknown,
-            false,
-            false,
-            false,
-            false,
-            fresh_process_seen_at + Duration::from_millis(1),
-        );
-
-        let late_old = terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::path(old_session),
-            Some(500),
-        );
-        let fresh_new = terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::path(new_session.clone()),
-            Some(501),
-        );
-
-        assert!(late_old.is_none());
-        assert!(fresh_new.is_none());
-        terminal
-            .set_agent_session_ref_for_session_start(
-                "herdr:pi".into(),
-                "pi".into(),
-                crate::agent_resume::AgentSessionRef::path(new_session),
-                Some(400),
-                Some("startup".into()),
-            )
-            .expect("fresh session should activate the buffered report");
-        assert!(terminal.hook_authority.is_some());
-        assert_eq!(terminal.state, AgentState::Working);
-    }
-
-    #[test]
-    fn rapid_restart_replays_reports_that_arrive_before_process_evidence() {
-        let mut terminal = test_terminal();
-        let session_path = test_session_path("reports-before-process-evidence.jsonl");
-        let now = Instant::now();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
-        terminal.set_hook_authority_at(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::path(session_path.clone()),
-            Some(1000),
-            now,
-        );
-        terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
-            AgentState::Idle,
-            false,
-            true,
-            false,
-            true,
-            now + Duration::from_millis(1),
-        );
-
-        let lower_sequence = terminal.set_hook_authority_at(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Idle,
-            None,
-            crate::agent_resume::AgentSessionRef::path(session_path.clone()),
-            Some(1001),
-            now + Duration::from_millis(2),
-        );
-        let missing_sequence = terminal.set_hook_authority_at(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Idle,
-            None,
-            crate::agent_resume::AgentSessionRef::path(session_path.clone()),
-            None,
-            now + Duration::from_millis(3),
-        );
-        let buffered_working = terminal.set_hook_authority_at(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::path(session_path.clone()),
-            Some(2001),
-            now + Duration::from_millis(4),
-        );
-        let startup = terminal.set_agent_session_ref_for_session_start(
-            "herdr:pi".into(),
-            "pi".into(),
-            crate::agent_resume::AgentSessionRef::path(session_path),
-            Some(2000),
-            Some("startup".into()),
-        );
-        assert!(startup.is_none());
-        assert!(lower_sequence.is_none());
-        assert!(missing_sequence.is_none());
-        assert!(buffered_working.is_none());
-        assert!(!terminal.full_lifecycle_hook_authority_active());
-
-        terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
-            AgentState::Idle,
-            false,
-            true,
-            false,
-            false,
-            now + Duration::from_millis(5),
-        );
-
-        assert!(terminal.full_lifecycle_hook_authority_active());
-        assert_eq!(terminal.state, AgentState::Working);
-    }
-
-    #[test]
     fn process_exit_discards_unclaimed_buffered_state_from_that_generation() {
         let mut terminal = test_terminal();
         let old_session = test_session_path("buffered-exit-old.jsonl");
@@ -3102,14 +2357,14 @@ mod tests {
         let now = Instant::now();
         anchor_full_lifecycle_session(
             &mut terminal,
-            Agent::Pi,
-            "herdr:pi",
-            "pi",
+            Agent::Codex,
+            "herdr:codex",
+            "codex",
             crate::agent_resume::AgentSessionRef::path(old_session.clone()).unwrap(),
         );
         terminal.set_hook_authority_at(
-            "herdr:pi".into(),
-            "pi".into(),
+            "herdr:codex".into(),
+            "codex".into(),
             AgentState::Working,
             None,
             crate::agent_resume::AgentSessionRef::path(old_session),
@@ -3117,7 +2372,7 @@ mod tests {
             now,
         );
         terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
+            Some(Agent::Codex),
             AgentState::Idle,
             false,
             true,
@@ -3126,7 +2381,7 @@ mod tests {
             now + Duration::from_millis(1),
         );
         terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
+            Some(Agent::Codex),
             AgentState::Idle,
             false,
             true,
@@ -3135,8 +2390,8 @@ mod tests {
             now + Duration::from_millis(2),
         );
         terminal.set_hook_authority_at(
-            "herdr:pi".into(),
-            "pi".into(),
+            "herdr:codex".into(),
+            "codex".into(),
             AgentState::Working,
             None,
             crate::agent_resume::AgentSessionRef::path(shared_session.clone()),
@@ -3145,7 +2400,7 @@ mod tests {
         );
 
         terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
+            Some(Agent::Codex),
             AgentState::Idle,
             false,
             true,
@@ -3154,7 +2409,7 @@ mod tests {
             now + Duration::from_millis(4),
         );
         terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
+            Some(Agent::Codex),
             AgentState::Idle,
             false,
             true,
@@ -3164,8 +2419,8 @@ mod tests {
         );
         terminal
             .set_agent_session_ref_for_session_start(
-                "herdr:pi".into(),
-                "pi".into(),
+                "herdr:codex".into(),
+                "codex".into(),
                 crate::agent_resume::AgentSessionRef::path(shared_session),
                 Some(100),
                 Some("startup".into()),
@@ -3181,10 +2436,10 @@ mod tests {
         let mut terminal = test_terminal();
         let session_path = test_session_path("queued-after-process-exit.jsonl");
         let process_exit_at = Instant::now() - Duration::from_secs(1);
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         terminal.set_hook_authority_at(
-            "herdr:pi".into(),
-            "pi".into(),
+            "herdr:codex".into(),
+            "codex".into(),
             AgentState::Working,
             None,
             crate::agent_resume::AgentSessionRef::path(session_path.clone()),
@@ -3192,7 +2447,7 @@ mod tests {
             process_exit_at - Duration::from_millis(1),
         );
         terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
+            Some(Agent::Codex),
             AgentState::Idle,
             false,
             true,
@@ -3211,7 +2466,7 @@ mod tests {
             process_exit_at + Duration::from_millis(1),
         );
         terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
+            Some(Agent::Codex),
             AgentState::Idle,
             false,
             true,
@@ -3220,8 +2475,8 @@ mod tests {
             process_exit_at + Duration::from_millis(2),
         );
         let startup = terminal.set_agent_session_ref_for_session_start(
-            "herdr:pi".into(),
-            "pi".into(),
+            "herdr:codex".into(),
+            "codex".into(),
             crate::agent_resume::AgentSessionRef::path(session_path),
             Some(2000),
             Some("startup".into()),
@@ -3231,176 +2486,13 @@ mod tests {
     }
 
     #[test]
-    fn different_session_after_process_exit_waits_for_fresh_process_evidence() {
-        let mut terminal = test_terminal();
-        let old_session = test_session_path("old-before-process-exit.jsonl");
-        let new_session = test_session_path("new-after-process-exit.jsonl");
-        let now = Instant::now();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
-        terminal.set_hook_authority_at(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::path(old_session),
-            Some(1000),
-            now,
-        );
-        terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
-            AgentState::Idle,
-            false,
-            true,
-            false,
-            true,
-            now + Duration::from_millis(1),
-        );
-
-        let early_new = terminal.set_hook_authority_at(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::path(new_session.clone()),
-            Some(500),
-            now + Duration::from_millis(2),
-        );
-
-        assert!(early_new.is_none());
-        assert!(terminal.hook_authority.is_none());
-
-        terminal.set_detected_state_with_screen_signals_at(
-            None,
-            AgentState::Unknown,
-            false,
-            false,
-            false,
-            false,
-            now + Duration::from_millis(3),
-        );
-        terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
-            AgentState::Unknown,
-            false,
-            false,
-            false,
-            false,
-            now + Duration::from_millis(4),
-        );
-        let fresh_new = terminal.set_agent_session_ref_for_session_start(
-            "herdr:pi".into(),
-            "pi".into(),
-            crate::agent_resume::AgentSessionRef::path(new_session),
-            Some(400),
-            Some("startup".into()),
-        );
-
-        assert!(fresh_new.is_some());
-        assert!(terminal.hook_authority.is_some());
-        assert_eq!(terminal.state, AgentState::Working);
-    }
-
-    #[test]
-    fn missing_session_after_process_exit_waits_for_fresh_process_evidence() {
-        let mut terminal = test_terminal();
-        let old_session = test_session_path("old-before-nosession-process-exit.jsonl");
-        let now = Instant::now();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
-        terminal.set_hook_authority_at(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::path(old_session),
-            Some(1000),
-            now,
-        );
-        terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
-            AgentState::Idle,
-            false,
-            true,
-            false,
-            true,
-            now + Duration::from_millis(1),
-        );
-
-        let early_without_session = terminal.set_hook_authority_at(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            None,
-            Some(500),
-            now + Duration::from_millis(2),
-        );
-
-        assert!(early_without_session.is_none());
-        assert!(terminal.hook_authority.is_none());
-
-        terminal.set_detected_state_with_screen_signals_at(
-            None,
-            AgentState::Unknown,
-            false,
-            false,
-            false,
-            false,
-            now + Duration::from_millis(3),
-        );
-        terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
-            AgentState::Unknown,
-            false,
-            false,
-            false,
-            false,
-            now + Duration::from_millis(4),
-        );
-        let fresh_without_session = terminal.set_hook_authority_at(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            None,
-            Some(500),
-            now + Duration::from_millis(5),
-        );
-        assert!(fresh_without_session.is_none());
-        assert!(terminal.hook_authority.is_none());
-
-        terminal
-            .set_agent_session_ref_for_session_start(
-                "herdr:pi".into(),
-                "pi".into(),
-                crate::agent_resume::AgentSessionRef::path(test_session_path(
-                    "fresh-after-nosession-process-exit.jsonl",
-                )),
-                Some(600),
-                Some("startup".into()),
-            )
-            .expect("fresh root session should claim the process generation");
-        let child_update = terminal.set_hook_authority_at(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            None,
-            Some(601),
-            now + Duration::from_millis(6),
-        );
-
-        assert!(child_update.is_some());
-        assert_eq!(terminal.state, AgentState::Working);
-    }
-
-    #[test]
     fn mastracode_session_start_replaces_current_root_session() {
         let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Mastracode), AgentState::Idle);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         terminal
             .set_agent_session_ref_for_session_start(
-                "herdr:mastracode".into(),
-                "mastracode".into(),
+                "herdr:codex".into(),
+                "codex".into(),
                 crate::agent_resume::AgentSessionRef::id("mastracode-old"),
                 Some(20),
                 Some("startup".into()),
@@ -3408,8 +2500,8 @@ mod tests {
             .expect("initial root session");
 
         let replacement = terminal.set_agent_session_ref_for_session_start(
-            "herdr:mastracode".into(),
-            "mastracode".into(),
+            "herdr:codex".into(),
+            "codex".into(),
             crate::agent_resume::AgentSessionRef::id("mastracode-new"),
             Some(21),
             Some("startup".into()),
@@ -3423,188 +2515,6 @@ mod tests {
                 .map(|session| session.session_ref.value.as_str()),
             Some("mastracode-new")
         );
-    }
-
-    #[test]
-    fn omp_reacquires_full_lifecycle_hook_after_process_exit_with_fresh_process_and_session_ref() {
-        let now = Instant::now();
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Omp), AgentState::Idle);
-        terminal.set_hook_authority_at(
-            "herdr:omp".into(),
-            "omp".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::id("omp-old"),
-            Some(1000),
-            now,
-        );
-        terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Omp),
-            AgentState::Idle,
-            false,
-            true,
-            false,
-            true,
-            now + Duration::from_millis(1),
-        );
-
-        let stale = terminal.set_hook_authority_with_session_ref(
-            "herdr:omp".into(),
-            "omp".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::id("omp-old"),
-            Some(500),
-        );
-        assert!(stale.is_none());
-        assert!(terminal.hook_authority.is_none());
-
-        terminal.set_detected_state_with_screen_signals_at(
-            None,
-            AgentState::Unknown,
-            false,
-            false,
-            false,
-            false,
-            now + Duration::from_millis(2),
-        );
-        terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Omp),
-            AgentState::Unknown,
-            false,
-            false,
-            false,
-            false,
-            now + Duration::from_millis(3),
-        );
-        terminal
-            .set_agent_session_ref_for_session_start(
-                "herdr:omp".into(),
-                "omp".into(),
-                crate::agent_resume::AgentSessionRef::id("omp-new"),
-                Some(400),
-                Some("startup".into()),
-            )
-            .expect("fresh process and session should claim the pane");
-        let fresh = terminal.set_hook_authority_with_session_ref(
-            "herdr:omp".into(),
-            "omp".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::id("omp-new"),
-            Some(500),
-        );
-
-        assert!(fresh.is_some());
-        assert!(terminal.hook_authority.is_some());
-        assert_eq!(terminal.state, AgentState::Working);
-    }
-
-    #[test]
-    fn visible_blocker_overrides_non_blocked_hook_for_same_agent() {
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
-        terminal.set_hook_authority(
-            "herdr:codex".into(),
-            "codex".into(),
-            AgentState::Working,
-            None,
-            None,
-        );
-
-        let change = terminal.set_detected_state_with_visible_blocker(
-            Some(Agent::Codex),
-            AgentState::Blocked,
-            true,
-            false,
-            false,
-        );
-
-        assert_eq!(terminal.fallback_state, AgentState::Blocked);
-        assert_eq!(terminal.state, AgentState::Blocked);
-        assert_eq!(change.unwrap().previous_state, AgentState::Working);
-    }
-
-    #[test]
-    fn visible_blocker_does_not_override_full_lifecycle_hook_authority() {
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::Pi,
-            "herdr:pi",
-            "pi",
-            crate::agent_resume::AgentSessionRef::path(test_session_path("root.jsonl")).unwrap(),
-        );
-        terminal.set_hook_authority(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            None,
-        );
-
-        let change = terminal.set_detected_state_with_visible_blocker(
-            Some(Agent::Pi),
-            AgentState::Blocked,
-            true,
-            false,
-            false,
-        );
-
-        assert_eq!(terminal.fallback_state, AgentState::Idle);
-        assert_eq!(terminal.state, AgentState::Working);
-        assert!(change.is_none());
-    }
-
-    #[test]
-    fn weak_blocked_fallback_does_not_override_hook_authority() {
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
-        terminal.set_hook_authority(
-            "herdr:codex".into(),
-            "codex".into(),
-            AgentState::Working,
-            None,
-            None,
-        );
-
-        let change = terminal.set_detected_state_with_visible_blocker(
-            Some(Agent::Codex),
-            AgentState::Blocked,
-            false,
-            false,
-            false,
-        );
-
-        assert_eq!(terminal.fallback_state, AgentState::Blocked);
-        assert_eq!(terminal.state, AgentState::Working);
-        assert!(change.is_none());
-    }
-
-    #[test]
-    fn hook_blocked_wins_over_visible_blocker() {
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Codex), AgentState::Working);
-        terminal.set_hook_authority(
-            "herdr:codex".into(),
-            "codex".into(),
-            AgentState::Blocked,
-            None,
-            None,
-        );
-
-        terminal.set_detected_state_with_visible_blocker(
-            Some(Agent::Codex),
-            AgentState::Blocked,
-            true,
-            false,
-            false,
-        );
-
-        assert_eq!(terminal.state, AgentState::Blocked);
-        assert!(terminal.hook_authority.is_some());
     }
 
     #[test]
@@ -3661,41 +2571,6 @@ mod tests {
     }
 
     #[test]
-    fn fallback_idle_does_not_override_full_lifecycle_hook_working() {
-        let now = Instant::now();
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::OpenCode), AgentState::Working);
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::OpenCode,
-            "herdr:opencode",
-            "opencode",
-            crate::agent_resume::AgentSessionRef::id("opencode-root").unwrap(),
-        );
-        terminal.set_hook_authority_at(
-            "herdr:opencode".into(),
-            "opencode".into(),
-            AgentState::Working,
-            None,
-            None,
-            None,
-            now,
-        );
-        terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::OpenCode),
-            AgentState::Idle,
-            false,
-            true,
-            false,
-            false,
-            now + Duration::from_secs(10),
-        );
-
-        assert_eq!(terminal.fallback_state, AgentState::Working);
-        assert_eq!(terminal.state, AgentState::Working);
-    }
-
-    #[test]
     fn visible_working_does_not_override_hook_idle_for_same_agent() {
         let now = Instant::now();
         let mut terminal = test_terminal();
@@ -3721,80 +2596,6 @@ mod tests {
         );
 
         assert_eq!(terminal.fallback_state, AgentState::Working);
-        assert_eq!(terminal.state, AgentState::Idle);
-        assert!(change.effective_state_change.is_none());
-    }
-
-    #[test]
-    fn visible_working_does_not_override_full_lifecycle_hook_idle() {
-        let now = Instant::now();
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Kimi), AgentState::Idle);
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::Kimi,
-            "herdr:kimi",
-            "kimi",
-            crate::agent_resume::AgentSessionRef::id("kimi-root").unwrap(),
-        );
-        terminal.set_hook_authority_at(
-            "herdr:kimi".into(),
-            "kimi".into(),
-            AgentState::Idle,
-            None,
-            None,
-            None,
-            now,
-        );
-
-        let change = terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Kimi),
-            AgentState::Working,
-            false,
-            false,
-            true,
-            false,
-            now + Duration::from_millis(1),
-        );
-
-        assert_eq!(terminal.fallback_state, AgentState::Idle);
-        assert_eq!(terminal.state, AgentState::Idle);
-        assert!(change.effective_state_change.is_none());
-    }
-
-    #[test]
-    fn detected_working_fallback_is_ignored_under_full_lifecycle_hook_authority() {
-        let now = Instant::now();
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Kilo), AgentState::Idle);
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::Kilo,
-            "herdr:kilo",
-            "kilo",
-            crate::agent_resume::AgentSessionRef::id("kilo-root").unwrap(),
-        );
-        terminal.set_hook_authority_at(
-            "herdr:kilo".into(),
-            "kilo".into(),
-            AgentState::Idle,
-            None,
-            None,
-            None,
-            now,
-        );
-
-        let change = terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Kilo),
-            AgentState::Working,
-            false,
-            false,
-            false,
-            false,
-            now + Duration::from_millis(1),
-        );
-
-        assert_eq!(terminal.fallback_state, AgentState::Idle);
         assert_eq!(terminal.state, AgentState::Idle);
         assert!(change.effective_state_change.is_none());
     }
@@ -3835,74 +2636,9 @@ mod tests {
     }
 
     #[test]
-    fn refreshed_visible_working_does_not_override_newer_hook_blocked() {
-        let now = Instant::now();
-        let mut terminal = test_terminal();
-        terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Codex),
-            AgentState::Working,
-            false,
-            false,
-            true,
-            false,
-            now,
-        );
-        terminal.set_hook_authority_at(
-            "herdr:codex".into(),
-            "codex".into(),
-            AgentState::Blocked,
-            None,
-            None,
-            None,
-            now + Duration::from_millis(1201),
-        );
-
-        assert_eq!(terminal.state, AgentState::Blocked);
-
-        let change = terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Codex),
-            AgentState::Working,
-            false,
-            false,
-            true,
-            false,
-            now + Duration::from_millis(2000),
-        );
-
-        assert_eq!(terminal.fallback_state, AgentState::Working);
-        assert_eq!(terminal.state, AgentState::Blocked);
-        assert!(change.effective_state_change.is_none());
-    }
-
-    #[test]
-    fn fallback_idle_does_not_override_other_agent_hook_working() {
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Codex), AgentState::Working);
-        terminal.set_hook_authority(
-            "herdr:codex".into(),
-            "codex".into(),
-            AgentState::Working,
-            None,
-            None,
-        );
-
-        let change = terminal.set_detected_state_with_visible_blocker(
-            Some(Agent::Codex),
-            AgentState::Idle,
-            false,
-            true,
-            false,
-        );
-
-        assert_eq!(terminal.fallback_state, AgentState::Idle);
-        assert_eq!(terminal.state, AgentState::Working);
-        assert!(change.is_none());
-    }
-
-    #[test]
     fn known_hook_authority_does_not_override_different_detected_agent() {
         let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Grok), AgentState::Working);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Working);
         let change = terminal.set_hook_authority(
             "herdr:claude".into(),
             "claude".into(),
@@ -3913,8 +2649,8 @@ mod tests {
 
         assert!(change.is_none());
         assert!(terminal.hook_authority.is_none());
-        assert_eq!(terminal.detected_agent, Some(Agent::Grok));
-        assert_eq!(terminal.effective_agent_label(), Some("grok"));
+        assert_eq!(terminal.detected_agent, Some(Agent::Codex));
+        assert_eq!(terminal.effective_agent_label(), Some("codex"));
         assert_eq!(terminal.state, AgentState::Working);
     }
 
@@ -3929,11 +2665,11 @@ mod tests {
             None,
         );
 
-        terminal.set_detected_state(Some(Agent::Grok), AgentState::Working);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Working);
 
         assert!(terminal.hook_authority.is_none());
-        assert_eq!(terminal.detected_agent, Some(Agent::Grok));
-        assert_eq!(terminal.effective_agent_label(), Some("grok"));
+        assert_eq!(terminal.detected_agent, Some(Agent::Codex));
+        assert_eq!(terminal.effective_agent_label(), Some("codex"));
         assert_eq!(terminal.state, AgentState::Working);
     }
 
@@ -3960,7 +2696,7 @@ mod tests {
     #[test]
     fn hook_authority_survives_unrelated_detected_agent_clear() {
         let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         terminal.set_hook_authority(
             "herdr:custom".into(),
             "custom-agent".into(),
@@ -3978,51 +2714,12 @@ mod tests {
     }
 
     #[test]
-    fn full_lifecycle_hook_authority_ignores_detected_agent_clear_without_process_exit() {
-        let now = Instant::now();
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::Pi,
-            "herdr:pi",
-            "pi",
-            crate::agent_resume::AgentSessionRef::path(test_session_path("root.jsonl")).unwrap(),
-        );
-        terminal.set_hook_authority_at(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            None,
-            None,
-            now,
-        );
-
-        let change = terminal.set_detected_state_with_screen_signals_at(
-            None,
-            AgentState::Unknown,
-            false,
-            false,
-            false,
-            false,
-            now + Duration::from_millis(1),
-        );
-
-        assert!(terminal.hook_authority.is_some());
-        assert_eq!(terminal.detected_agent, Some(Agent::Pi));
-        assert_eq!(terminal.fallback_state, AgentState::Idle);
-        assert_eq!(terminal.state, AgentState::Working);
-        assert!(change.effective_state_change.is_none());
-    }
-
-    #[test]
     fn detected_agent_clear_clears_matching_hook_authority() {
         let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Cursor), AgentState::Idle);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         terminal.set_hook_authority(
-            "herdr:cursor".into(),
-            "cursor".into(),
+            "herdr:codex".into(),
+            "codex".into(),
             AgentState::Idle,
             None,
             None,
@@ -4124,7 +2821,7 @@ mod tests {
         let mut terminal = test_terminal();
         let observed = Instant::now();
         terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
+            Some(Agent::Codex),
             AgentState::Idle,
             false,
             false,
@@ -4134,7 +2831,7 @@ mod tests {
         );
         terminal.set_hook_authority_at(
             "custom:pi".into(),
-            "pi".into(),
+            "codex".into(),
             AgentState::Working,
             None,
             None,
@@ -4143,7 +2840,7 @@ mod tests {
         );
 
         let mutation = terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
+            Some(Agent::Codex),
             AgentState::Idle,
             false,
             false,
@@ -4167,10 +2864,10 @@ mod tests {
     fn custom_authority_reanchors_sequence_after_process_restart() {
         let mut terminal = test_terminal();
         let observed = Instant::now();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         terminal.set_hook_authority_at(
             "custom:pi".into(),
-            "pi".into(),
+            "codex".into(),
             AgentState::Working,
             None,
             None,
@@ -4178,7 +2875,7 @@ mod tests {
             observed,
         );
         terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
+            Some(Agent::Codex),
             AgentState::Idle,
             false,
             false,
@@ -4197,7 +2894,7 @@ mod tests {
         );
 
         assert!(terminal
-            .release_agent_with_mutation("custom:pi", "pi", Some(200))
+            .release_agent_with_mutation("custom:pi", "codex", Some(200))
             .is_none());
         assert!(terminal
             .clear_hook_authority_with_mutation(Some("custom:pi"), Some(201))
@@ -4205,14 +2902,14 @@ mod tests {
         assert!(terminal
             .set_hook_authority(
                 "custom:pi".into(),
-                "pi".into(),
+                "codex".into(),
                 AgentState::Working,
                 None,
                 Some(1),
             )
             .is_none());
         terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
+            Some(Agent::Codex),
             AgentState::Idle,
             false,
             false,
@@ -4223,7 +2920,7 @@ mod tests {
         assert!(terminal
             .set_hook_authority(
                 "custom:pi".into(),
-                "pi".into(),
+                "codex".into(),
                 AgentState::Working,
                 None,
                 Some(1),
@@ -4290,165 +2987,12 @@ mod tests {
             None,
         );
 
-        terminal.set_detected_state(Some(Agent::OpenCode), AgentState::Working);
+        terminal.set_detected_state(Some(Agent::Claude), AgentState::Working);
 
         assert!(terminal.hook_authority.is_none());
-        assert_eq!(terminal.detected_agent, Some(Agent::OpenCode));
-        assert_eq!(terminal.effective_agent_label(), Some("opencode"));
+        assert_eq!(terminal.detected_agent, Some(Agent::Claude));
+        assert_eq!(terminal.effective_agent_label(), Some("claude"));
         assert_eq!(terminal.state, AgentState::Working);
-    }
-
-    #[test]
-    fn stale_hook_report_sequence_is_ignored_for_same_source() {
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::Pi,
-            "herdr:pi",
-            "pi",
-            crate::agent_resume::AgentSessionRef::path(test_session_path("root.jsonl")).unwrap(),
-        );
-        terminal.set_hook_authority(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            Some(20),
-        );
-
-        let change = terminal.set_hook_authority(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Idle,
-            None,
-            Some(19),
-        );
-
-        assert!(change.is_none());
-        assert_eq!(terminal.state, AgentState::Working);
-        assert_eq!(
-            terminal.hook_authority.as_ref().unwrap().state,
-            AgentState::Working
-        );
-    }
-
-    #[test]
-    fn accepted_hook_report_stores_session_ref() {
-        let mut terminal = test_terminal();
-        let session_path = test_session_path("pi.jsonl");
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::Pi,
-            "herdr:pi",
-            "pi",
-            crate::agent_resume::AgentSessionRef::path(session_path.clone()).unwrap(),
-        );
-        let mutation = terminal
-            .set_hook_authority_with_session_ref(
-                "herdr:pi".into(),
-                "pi".into(),
-                AgentState::Working,
-                None,
-                crate::agent_resume::AgentSessionRef::path(session_path.clone()),
-                Some(20),
-            )
-            .expect("accepted report");
-
-        assert!(!mutation.session_ref_changed);
-        assert_eq!(
-            terminal
-                .hook_authority
-                .as_ref()
-                .and_then(|authority| authority.session_ref.as_ref())
-                .map(|session_ref| (&session_ref.kind, session_ref.value.as_str())),
-            Some((
-                &crate::agent_resume::AgentSessionRefKind::Path,
-                session_path.as_str()
-            ))
-        );
-    }
-
-    #[test]
-    fn stale_hook_report_cannot_overwrite_session_ref() {
-        let mut terminal = test_terminal();
-        let session_path = test_session_path("pi.jsonl");
-        let new_session_path = test_session_path("new.jsonl");
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::Pi,
-            "herdr:pi",
-            "pi",
-            crate::agent_resume::AgentSessionRef::path(session_path.clone()).unwrap(),
-        );
-        terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::path(session_path.clone()),
-            Some(20),
-        );
-
-        let mutation = terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::path(new_session_path),
-            Some(19),
-        );
-
-        assert!(mutation.is_none());
-        assert_eq!(
-            terminal
-                .hook_authority
-                .as_ref()
-                .and_then(|authority| authority.session_ref.as_ref())
-                .map(|session_ref| session_ref.value.as_str()),
-            Some(session_path.as_str())
-        );
-    }
-
-    #[test]
-    fn accepted_hook_report_without_session_ref_clears_previous_ref() {
-        let mut terminal = test_terminal();
-        let session_path = test_session_path("pi.jsonl");
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::Pi,
-            "herdr:pi",
-            "pi",
-            crate::agent_resume::AgentSessionRef::path(session_path.clone()).unwrap(),
-        );
-        terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::path(session_path),
-            Some(20),
-        );
-
-        let mutation = terminal
-            .set_hook_authority_with_session_ref(
-                "herdr:pi".into(),
-                "pi".into(),
-                AgentState::Working,
-                None,
-                None,
-                Some(21),
-            )
-            .expect("accepted report");
-
-        assert!(mutation.session_ref_changed);
-        assert!(mutation.effective_state_change.is_none());
-        assert!(terminal
-            .hook_authority
-            .as_ref()
-            .unwrap()
-            .session_ref
-            .is_none());
     }
 
     #[test]
@@ -4554,511 +3098,27 @@ mod tests {
     }
 
     #[test]
-    fn codex_lifecycle_session_ref_replaces_existing_session_ref() {
-        for session_start_source in ["startup", "clear", "resume", "compact"] {
-            let mut terminal = test_terminal();
-            terminal
-                .set_agent_session_ref(
-                    "herdr:codex".into(),
-                    "codex".into(),
-                    crate::agent_resume::AgentSessionRef::id("codex-session"),
-                    Some(20),
-                )
-                .expect("initial session should be accepted");
-
-            let next_session = format!("codex-{session_start_source}-session");
-            let mutation = terminal
-                .set_agent_session_ref_for_session_start(
-                    "herdr:codex".into(),
-                    "codex".into(),
-                    crate::agent_resume::AgentSessionRef::id(&next_session),
-                    Some(21),
-                    Some(session_start_source.into()),
-                )
-                .unwrap_or_else(|| panic!("{session_start_source} should replace the session"));
-
-            assert!(mutation.session_ref_changed);
-            assert_eq!(
-                terminal
-                    .persisted_agent_session
-                    .as_ref()
-                    .map(|session| session.session_ref.value.as_str()),
-                Some(next_session.as_str())
-            );
-        }
-    }
-
-    #[test]
-    fn qwen_lifecycle_session_ref_replaces_existing_session_ref() {
-        for session_start_source in ["startup", "clear", "resume", "compact", "branch"] {
-            let mut terminal = test_terminal();
-            terminal.set_detected_state(Some(Agent::Qwen), AgentState::Idle);
-            terminal
-                .set_agent_session_ref(
-                    "herdr:qwen".into(),
-                    "qwen".into(),
-                    crate::agent_resume::AgentSessionRef::id("qwen-session"),
-                    Some(20),
-                )
-                .expect("initial session should be accepted");
-
-            let next_session = format!("qwen-{session_start_source}-session");
-            let mutation = terminal
-                .set_agent_session_ref_for_session_start(
-                    "herdr:qwen".into(),
-                    "qwen".into(),
-                    crate::agent_resume::AgentSessionRef::id(&next_session),
-                    Some(21),
-                    Some(session_start_source.into()),
-                )
-                .unwrap_or_else(|| panic!("{session_start_source} should replace the session"));
-
-            assert!(mutation.session_ref_changed);
-            assert_eq!(
-                terminal
-                    .persisted_agent_session
-                    .as_ref()
-                    .map(|session| session.session_ref.value.as_str()),
-                Some(next_session.as_str())
-            );
-        }
-    }
-
-    #[test]
-    fn qwen_session_ref_does_not_replace_without_foreground_qwen() {
-        let mut terminal = test_terminal();
-        terminal
-            .set_agent_session_ref(
-                "herdr:qwen".into(),
-                "qwen".into(),
-                crate::agent_resume::AgentSessionRef::id("qwen-parent"),
-                Some(20),
-            )
-            .expect("initial session should be accepted");
-
-        let mutation = terminal.set_agent_session_ref_for_session_start(
-            "herdr:qwen".into(),
-            "qwen".into(),
-            crate::agent_resume::AgentSessionRef::id("qwen-branch"),
-            Some(21),
-            Some("branch".into()),
-        );
-
-        assert!(mutation.is_none());
-        assert_eq!(
-            terminal
-                .persisted_agent_session
-                .as_ref()
-                .map(|session| session.session_ref.value.as_str()),
-            Some("qwen-parent")
-        );
-    }
-
-    #[test]
-    fn grok_new_session_ref_replaces_existing_session_ref() {
-        let mut terminal = test_terminal();
-        terminal
-            .set_agent_session_ref(
-                "herdr:grok".into(),
-                "grok".into(),
-                crate::agent_resume::AgentSessionRef::id("grok-old"),
-                Some(20),
-            )
-            .expect("initial session should be accepted");
-
-        let mutation = terminal
-            .set_agent_session_ref_for_session_start(
-                "herdr:grok".into(),
-                "grok".into(),
-                crate::agent_resume::AgentSessionRef::id("grok-new"),
-                Some(21),
-                Some("new".into()),
-            )
-            .expect("new should replace the grok session");
-
-        assert!(mutation.session_ref_changed);
-        assert_eq!(
-            terminal
-                .persisted_agent_session
-                .as_ref()
-                .map(|session| session.session_ref.value.as_str()),
-            Some("grok-new")
-        );
-    }
-
-    #[test]
-    fn opencode_server_new_does_not_replace_existing_session_ref() {
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::OpenCode), AgentState::Idle);
-        terminal
-            .set_agent_session_ref_for_session_start(
-                "herdr:opencode".into(),
-                "opencode".into(),
-                crate::agent_resume::AgentSessionRef::id("opencode-visible"),
-                None,
-                Some("select".into()),
-            )
-            .expect("local selection should be accepted");
-
-        let mutation = terminal.set_agent_session_ref_for_session_start(
-            "herdr:opencode".into(),
-            "opencode".into(),
-            crate::agent_resume::AgentSessionRef::id("opencode-attached-client"),
-            Some(21),
-            Some("new".into()),
-        );
-
-        assert!(mutation.is_none());
-        assert_eq!(
-            terminal
-                .persisted_agent_session
-                .as_ref()
-                .map(|session| session.session_ref.value.as_str()),
-            Some("opencode-visible")
-        );
-    }
-
-    #[test]
-    fn opencode_server_resume_does_not_replace_existing_session_ref() {
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::OpenCode), AgentState::Idle);
-        terminal
-            .set_agent_session_ref_for_session_start(
-                "herdr:opencode".into(),
-                "opencode".into(),
-                crate::agent_resume::AgentSessionRef::id("opencode-visible"),
-                None,
-                Some("select".into()),
-            )
-            .expect("local selection should be accepted");
-
-        let mutation = terminal.set_agent_session_ref_for_session_start(
-            "herdr:opencode".into(),
-            "opencode".into(),
-            crate::agent_resume::AgentSessionRef::id("opencode-attached-client"),
-            Some(21),
-            Some("resume".into()),
-        );
-
-        assert!(mutation.is_none());
-        assert_eq!(
-            terminal
-                .persisted_agent_session
-                .as_ref()
-                .map(|session| session.session_ref.value.as_str()),
-            Some("opencode-visible")
-        );
-    }
-
-    #[test]
-    fn opencode_tui_selection_anchors_after_process_detection() {
-        let mut terminal = test_terminal();
-        let startup_selection = terminal.set_agent_session_ref_for_session_start(
-            "herdr:opencode".into(),
-            "opencode".into(),
-            crate::agent_resume::AgentSessionRef::id("opencode-startup-selection"),
-            None,
-            Some("select".into()),
-        );
-        assert!(startup_selection.is_none());
-        assert_eq!(
-            terminal
-                .suppressed_full_lifecycle_hook_reports
-                .get("herdr:opencode")
-                .and_then(|suppressed| suppressed.replacement_session_ref.as_ref())
-                .map(|session| session.value.as_str()),
-            Some("opencode-startup-selection")
-        );
-
-        terminal.set_detected_state(Some(Agent::OpenCode), AgentState::Idle);
-        assert_eq!(
-            terminal
-                .persisted_agent_session
-                .as_ref()
-                .map(|session| session.session_ref.value.as_str()),
-            Some("opencode-startup-selection")
-        );
-        assert!(!terminal
-            .suppressed_full_lifecycle_hook_reports
-            .contains_key("herdr:opencode"));
-
-        terminal.suppressed_full_lifecycle_hook_reports.insert(
-            "herdr:opencode".into(),
-            SuppressedFullLifecycleHookReport {
-                agent_label: "opencode".into(),
-                session_ref: None,
-                observed_at: Instant::now(),
-                reason: FullLifecycleHookSuppressionReason::ProcessExit,
-                replacement_session_ref: None,
-                pending_replacement_report: None,
-            },
-        );
-        let selected = terminal
-            .set_agent_session_ref_for_session_start(
-                "herdr:opencode".into(),
-                "opencode".into(),
-                crate::agent_resume::AgentSessionRef::id("opencode-reselected"),
-                None,
-                Some("select".into()),
-            )
-            .expect("local TUI selection should reconcile generation suppression");
-
-        assert!(selected.session_ref_changed);
-        assert!(!terminal
-            .suppressed_full_lifecycle_hook_reports
-            .contains_key("herdr:opencode"));
-        assert_eq!(
-            terminal
-                .persisted_agent_session
-                .as_ref()
-                .map(|session| session.session_ref.value.as_str()),
-            Some("opencode-reselected")
-        );
-        assert!(!terminal
-            .hook_report_sequences
-            .contains_key("herdr:opencode"));
-    }
-
-    #[test]
-    fn opencode_child_prompt_reports_with_root_id_preserve_lifecycle_authority() {
-        let mut terminal = test_terminal();
-        let root = crate::agent_resume::AgentSessionRef::id("opencode-root").unwrap();
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::OpenCode,
-            "herdr:opencode",
-            "opencode",
-            root.clone(),
-        );
-
-        // The plugin projects child permission/question events onto their root.
-        for (seq, state) in [
-            (20, AgentState::Working),
-            (21, AgentState::Blocked),
-            (22, AgentState::Working),
-            (23, AgentState::Idle),
-        ] {
-            let mutation = terminal
-                .set_hook_authority_with_session_ref(
-                    "herdr:opencode".into(),
-                    "opencode".into(),
-                    state,
-                    None,
-                    Some(root.clone()),
-                    Some(seq),
-                )
-                .expect("root-scoped lifecycle report should be accepted");
-            assert!(!mutation.session_ref_changed);
-            assert_eq!(terminal.state, state);
-            assert_eq!(
-                terminal
-                    .hook_authority
-                    .as_ref()
-                    .unwrap()
-                    .session_ref
-                    .as_ref(),
-                Some(&root)
-            );
-        }
-
-        let foreign_child_prompt = terminal.set_hook_authority_with_session_ref(
-            "herdr:opencode".into(),
-            "opencode".into(),
-            AgentState::Blocked,
-            None,
-            crate::agent_resume::AgentSessionRef::id("opencode-other-root"),
-            Some(24),
-        );
-        assert!(foreign_child_prompt.is_none());
-        assert_eq!(terminal.state, AgentState::Idle);
-    }
-
-    #[test]
-    fn opencode_tui_selection_reanchors_full_lifecycle_authority() {
-        let mut terminal = test_terminal();
-        let old_session = crate::agent_resume::AgentSessionRef::id("opencode-newer").unwrap();
-        let selected_session =
-            crate::agent_resume::AgentSessionRef::id("opencode-selected-older").unwrap();
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::OpenCode,
-            "herdr:opencode",
-            "opencode",
-            old_session.clone(),
-        );
-        terminal
-            .set_hook_authority_with_session_ref(
-                "herdr:opencode".into(),
-                "opencode".into(),
-                AgentState::Idle,
-                None,
-                Some(old_session.clone()),
-                Some(20),
-            )
-            .expect("initial session should own lifecycle state");
-        let attached_session =
-            crate::agent_resume::AgentSessionRef::id("opencode-attached-client").unwrap();
-        let attached = terminal.set_hook_authority_with_session_ref(
-            "herdr:opencode".into(),
-            "opencode".into(),
-            AgentState::Working,
-            None,
-            Some(attached_session.clone()),
-            Some(21),
-        );
-        assert!(attached.is_none());
-        assert!(!terminal
-            .suppressed_full_lifecycle_hook_reports
-            .contains_key("herdr:opencode"));
-
-        let selected = terminal
-            .set_agent_session_ref_for_session_start(
-                "herdr:opencode".into(),
-                "opencode".into(),
-                Some(selected_session.clone()),
-                None,
-                Some("select".into()),
-            )
-            .expect("selected session should replace the previous session");
-
-        assert!(selected.session_ref_changed);
-        assert!(terminal.hook_authority.is_none());
-        assert!(!terminal
-            .suppressed_full_lifecycle_hook_reports
-            .contains_key("herdr:opencode"));
-        assert_eq!(
-            terminal.hook_report_sequences.get("herdr:opencode"),
-            Some(&20)
-        );
-        assert_eq!(
-            terminal
-                .persisted_agent_session
-                .as_ref()
-                .map(|session| &session.session_ref),
-            Some(&selected_session)
-        );
-
-        terminal
-            .set_hook_authority_with_session_ref(
-                "herdr:opencode".into(),
-                "opencode".into(),
-                AgentState::Working,
-                None,
-                Some(selected_session.clone()),
-                Some(21),
-            )
-            .expect("selected session should regain lifecycle authority");
-        assert_eq!(terminal.state, AgentState::Working);
-        assert_eq!(
-            terminal
-                .hook_authority
-                .as_ref()
-                .and_then(|authority| authority.session_ref.as_ref()),
-            Some(&selected_session)
-        );
-
-        let late_old_session = terminal.set_hook_authority_with_session_ref(
-            "herdr:opencode".into(),
-            "opencode".into(),
-            AgentState::Idle,
-            None,
-            Some(old_session),
-            Some(22),
-        );
-        assert!(late_old_session.is_none());
-        assert_eq!(terminal.state, AgentState::Working);
-        assert_eq!(
-            terminal
-                .hook_authority
-                .as_ref()
-                .and_then(|authority| authority.session_ref.as_ref()),
-            Some(&selected_session)
-        );
-
-        let late_attached_session = terminal.set_hook_authority_with_session_ref(
-            "herdr:opencode".into(),
-            "opencode".into(),
-            AgentState::Blocked,
-            None,
-            Some(attached_session),
-            Some(23),
-        );
-        assert!(late_attached_session.is_none());
-        assert_eq!(terminal.state, AgentState::Working);
-
-        let final_session =
-            crate::agent_resume::AgentSessionRef::id("opencode-final-selection").unwrap();
-        terminal
-            .set_agent_session_ref_for_session_start(
-                "herdr:opencode".into(),
-                "opencode".into(),
-                Some(final_session.clone()),
-                None,
-                Some("select".into()),
-            )
-            .expect("another local selection should remain authoritative");
-        assert_eq!(
-            terminal
-                .persisted_agent_session
-                .as_ref()
-                .map(|session| &session.session_ref),
-            Some(&final_session)
-        );
-        assert!(!terminal
-            .suppressed_full_lifecycle_hook_reports
-            .contains_key("herdr:opencode"));
-    }
-
-    #[test]
-    fn pi_session_replacement_clears_the_previous_sessions_alias() {
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
-        terminal
-            .set_agent_session_ref_for_session_start(
-                "herdr:pi".into(),
-                "pi".into(),
-                crate::agent_resume::AgentSessionRef::id("pi-old"),
-                Some(20),
-                Some("new".into()),
-            )
-            .expect("initial session should be accepted");
-        terminal.set_agent_name("reviewer".into());
-
-        terminal
-            .set_agent_session_ref_for_session_start(
-                "herdr:pi".into(),
-                "pi".into(),
-                crate::agent_resume::AgentSessionRef::id("pi-new"),
-                Some(21),
-                Some("new".into()),
-            )
-            .expect("new should replace the session");
-
-        assert!(terminal.agent_name.is_none());
-    }
-
-    #[test]
     fn managed_agent_name_survives_native_session_replacement() {
         let mut terminal = test_terminal();
         let now = Instant::now();
         terminal.begin_managed_agent(
             "reviewer".into(),
-            Agent::OpenCode,
+            Agent::Codex,
             now,
             Duration::ZERO,
             Duration::from_secs(1),
         );
-        terminal.set_detected_state(Some(Agent::OpenCode), AgentState::Idle);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         assert!(terminal.reconcile_managed_agent_at(now, false));
 
         for session in ["opencode-old", "opencode-new"] {
             terminal
                 .set_agent_session_ref_for_session_start(
-                    "herdr:opencode".into(),
-                    "opencode".into(),
+                    "herdr:codex".into(),
+                    "codex".into(),
                     crate::agent_resume::AgentSessionRef::id(session),
                     None,
-                    Some("select".into()),
+                    Some("resume".into()),
                 )
                 .expect("managed session should be accepted");
         }
@@ -5077,11 +3137,11 @@ mod tests {
     #[test]
     fn opencode_session_ref_without_start_source_does_not_replace_existing() {
         let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::OpenCode), AgentState::Idle);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         terminal
             .set_agent_session_ref_for_session_start(
-                "herdr:opencode".into(),
-                "opencode".into(),
+                "herdr:codex".into(),
+                "codex".into(),
                 crate::agent_resume::AgentSessionRef::id("opencode-old"),
                 None,
                 Some("select".into()),
@@ -5091,8 +3151,8 @@ mod tests {
         // session.updated reports carry no session_start_source, so a different
         // id must not displace the established session (cross-talk guard).
         let mutation = terminal.set_agent_session_ref_for_session_start(
-            "herdr:opencode".into(),
-            "opencode".into(),
+            "herdr:codex".into(),
+            "codex".into(),
             crate::agent_resume::AgentSessionRef::id("opencode-other"),
             Some(21),
             None,
@@ -5105,66 +3165,6 @@ mod tests {
                 .as_ref()
                 .map(|session| session.session_ref.value.as_str()),
             Some("opencode-old")
-        );
-    }
-
-    #[test]
-    fn different_owner_session_ref_does_not_replace_existing_session_ref() {
-        let mut terminal = test_terminal();
-        terminal
-            .set_agent_session_ref(
-                "herdr:droid".into(),
-                "droid".into(),
-                crate::agent_resume::AgentSessionRef::id("droid-session"),
-                Some(20),
-            )
-            .expect("initial session should be accepted");
-
-        let mutation = terminal.set_agent_session_ref_for_session_start(
-            "herdr:claude".into(),
-            "claude".into(),
-            crate::agent_resume::AgentSessionRef::id("claude-session"),
-            Some(21),
-            Some("resume".into()),
-        );
-
-        assert!(mutation.is_none());
-        assert_eq!(
-            terminal.persisted_agent_session.as_ref().map(|session| (
-                session.source.as_str(),
-                session.agent.as_str(),
-                session.session_ref.value.as_str()
-            )),
-            Some(("herdr:droid", "droid", "droid-session"))
-        );
-    }
-
-    #[test]
-    fn grok_new_session_does_not_replace_a_different_owner() {
-        let mut terminal = test_terminal();
-        terminal.set_persisted_agent_session(crate::agent_resume::PersistedAgentSession {
-            source: "herdr:claude".into(),
-            agent: "claude".into(),
-            session_ref: crate::agent_resume::AgentSessionRef::id("claude-session").unwrap(),
-        });
-        terminal.set_detected_state(Some(Agent::Grok), AgentState::Idle);
-
-        let mutation = terminal.set_agent_session_ref_for_session_start(
-            "herdr:grok".into(),
-            "grok".into(),
-            crate::agent_resume::AgentSessionRef::id("grok-session"),
-            Some(21),
-            Some("new".into()),
-        );
-
-        assert!(mutation.is_none());
-        assert_eq!(
-            terminal.persisted_agent_session.as_ref().map(|session| (
-                session.source.as_str(),
-                session.agent.as_str(),
-                session.session_ref.value.as_str()
-            )),
-            Some(("herdr:claude", "claude", "claude-session"))
         );
     }
 
@@ -5304,123 +3304,6 @@ mod tests {
     }
 
     #[test]
-    fn foreground_agent_session_replaces_stale_different_owner_hook_authority() {
-        let mut terminal = test_terminal();
-        let now = std::time::Instant::now();
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::OpenCode,
-            "herdr:opencode",
-            "opencode",
-            crate::agent_resume::AgentSessionRef::id("opencode-session").unwrap(),
-        );
-        terminal
-            .set_hook_authority_at(
-                "herdr:opencode".into(),
-                "opencode".into(),
-                AgentState::Working,
-                None,
-                crate::agent_resume::AgentSessionRef::id("opencode-session"),
-                Some(20),
-                now + Duration::from_millis(1),
-            )
-            .expect("initial hook authority should be accepted");
-        terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Codex),
-            AgentState::Idle,
-            false,
-            false,
-            false,
-            false,
-            now,
-        );
-
-        let mutation = terminal
-            .set_agent_session_ref_for_session_start(
-                "herdr:codex".into(),
-                "codex".into(),
-                crate::agent_resume::AgentSessionRef::id("codex-session"),
-                Some(21),
-                Some("startup".into()),
-            )
-            .expect("foreground codex should replace stale hook authority");
-
-        assert!(mutation.session_ref_changed);
-        assert!(terminal.hook_authority.is_none());
-        assert_eq!(
-            terminal.current_session_identity_for_persistence(),
-            Some((
-                "herdr:codex".into(),
-                "codex".into(),
-                crate::agent_resume::AgentSessionRefKind::Id,
-                "codex-session".into()
-            ))
-        );
-        let late_old_session = terminal.set_hook_authority_with_session_ref(
-            "herdr:opencode".into(),
-            "opencode".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::id("opencode-session"),
-            Some(22),
-        );
-        assert!(late_old_session.is_none());
-
-        terminal.set_detected_state(Some(Agent::OpenCode), AgentState::Idle);
-        terminal
-            .set_agent_session_ref_for_session_start(
-                "herdr:opencode".into(),
-                "opencode".into(),
-                crate::agent_resume::AgentSessionRef::id("opencode-new-session"),
-                None,
-                Some("select".into()),
-            )
-            .expect("fresh local selection");
-        let fresh_session = terminal.set_hook_authority_with_session_ref(
-            "herdr:opencode".into(),
-            "opencode".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::id("opencode-new-session"),
-            Some(24),
-        );
-        assert!(fresh_session.is_some());
-    }
-
-    #[test]
-    fn different_owner_full_lifecycle_hook_does_not_replace_existing_session_ref() {
-        let mut terminal = test_terminal();
-        terminal
-            .set_agent_session_ref(
-                "herdr:droid".into(),
-                "droid".into(),
-                crate::agent_resume::AgentSessionRef::id("droid-session"),
-                Some(20),
-            )
-            .expect("initial session should be accepted");
-
-        let mutation = terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::path("/tmp/pi-session.jsonl"),
-            Some(21),
-        );
-
-        assert!(mutation.is_none());
-        assert!(terminal.hook_authority.is_none());
-        assert_eq!(
-            terminal.persisted_agent_session.as_ref().map(|session| (
-                session.source.as_str(),
-                session.agent.as_str(),
-                session.session_ref.value.as_str()
-            )),
-            Some(("herdr:droid", "droid", "droid-session"))
-        );
-    }
-
-    #[test]
     fn repeated_same_agent_session_ref_is_accepted_without_session_change() {
         let mut terminal = test_terminal();
         terminal
@@ -5442,49 +3325,6 @@ mod tests {
             .expect("same session should be accepted");
 
         assert!(!mutation.session_ref_changed);
-    }
-
-    #[test]
-    fn hook_authority_rejects_state_from_a_different_session() {
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::OpenCode), AgentState::Idle);
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::OpenCode,
-            "herdr:opencode",
-            "opencode",
-            crate::agent_resume::AgentSessionRef::id("opencode-session").unwrap(),
-        );
-        terminal
-            .set_hook_authority_with_session_ref(
-                "herdr:opencode".into(),
-                "opencode".into(),
-                AgentState::Working,
-                None,
-                crate::agent_resume::AgentSessionRef::id("opencode-session"),
-                Some(20),
-            )
-            .expect("initial session should be accepted");
-
-        let mutation = terminal.set_hook_authority_with_session_ref(
-            "herdr:opencode".into(),
-            "opencode".into(),
-            AgentState::Blocked,
-            Some("needs approval".into()),
-            crate::agent_resume::AgentSessionRef::id("nested-session"),
-            Some(21),
-        );
-
-        assert!(mutation.is_none());
-        assert_eq!(terminal.state, AgentState::Working);
-        assert_eq!(
-            terminal
-                .hook_authority
-                .as_ref()
-                .and_then(|authority| authority.session_ref.as_ref())
-                .map(|session_ref| session_ref.value.as_str()),
-            Some("opencode-session")
-        );
     }
 
     #[test]
@@ -5521,34 +3361,6 @@ mod tests {
     }
 
     #[test]
-    fn clearing_hook_authority_clears_session_ref() {
-        let mut terminal = test_terminal();
-        let session_path = test_session_path("pi.jsonl");
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::Pi,
-            "herdr:pi",
-            "pi",
-            crate::agent_resume::AgentSessionRef::path(session_path.clone()).unwrap(),
-        );
-        terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::path(session_path),
-            Some(20),
-        );
-
-        let mutation = terminal
-            .clear_hook_authority_with_mutation(Some("herdr:pi"), Some(21))
-            .expect("accepted clear");
-
-        assert!(mutation.session_ref_changed);
-        assert!(terminal.hook_authority.is_none());
-    }
-
-    #[test]
     fn a_process_exit_observation_alone_does_not_free_the_name() {
         // The pane keeps reporting the same agent throughout: this models a
         // process-exit observation that is wrong (the agent is still running),
@@ -5556,7 +3368,7 @@ mod tests {
         // already refuses to let destroy the name through the detection path.
         let now = Instant::now();
         let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Working);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Working);
         terminal.set_agent_name("reviewer".into());
 
         // Contract today: losing detection does not cost the pane its name.
@@ -5566,11 +3378,11 @@ mod tests {
             Some("reviewer"),
             "detection uncertainty must not release the name"
         );
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Working);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Working);
 
         // A single process-exit observation for that same agent destroys it.
         let exit = terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
+            Some(Agent::Codex),
             AgentState::Idle,
             false,
             false,
@@ -5588,13 +3400,13 @@ mod tests {
 
         // And the agent proving it is alive again must not leave the pane
         // permanently unreachable by the name its owner assigned.
-        terminal.set_detected_agent_process_at(Agent::Pi, now + Duration::from_secs(1));
+        terminal.set_detected_agent_process_at(Agent::Codex, now + Duration::from_secs(1));
         assert_eq!(
             terminal.agent_name.as_deref(),
             Some("reviewer"),
             "the name must still resolve once the agent is observed alive again"
         );
-        assert_eq!(terminal.detected_agent, Some(Agent::Pi));
+        assert_eq!(terminal.detected_agent, Some(Agent::Codex));
     }
 
     #[test]
@@ -5604,11 +3416,11 @@ mod tests {
         // released, so `agent start` can reuse it.
         let now = Instant::now();
         let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Working);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Working);
         terminal.set_agent_name("reviewer".into());
 
         terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
+            Some(Agent::Codex),
             AgentState::Idle,
             false,
             false,
@@ -5637,34 +3449,13 @@ mod tests {
     }
 
     #[test]
-    fn agent_alias_survives_detection_uncertainty_and_reported_release_but_not_replacement() {
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Working);
-        terminal.set_agent_name("reviewer".into());
-
-        terminal.set_detected_state(None, AgentState::Unknown);
-        assert_eq!(terminal.agent_name.as_deref(), Some("reviewer"));
-
-        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
-        assert!(terminal.agent_name.is_none());
-
-        terminal.set_agent_name("replacement".into());
-        let mutation = terminal
-            .release_agent_with_mutation("herdr:codex", "codex", None)
-            .expect("detected agent release should be accepted");
-        assert!(!mutation.agent_released);
-        assert_eq!(terminal.agent_name.as_deref(), Some("replacement"));
-        assert_eq!(terminal.detected_agent, Some(Agent::Codex));
-    }
-
-    #[test]
     fn custom_release_preserves_process_owned_agent_state() {
         let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         terminal
             .set_hook_authority(
                 "custom:pi".into(),
-                "pi".into(),
+                "codex".into(),
                 AgentState::Working,
                 None,
                 Some(10),
@@ -5672,13 +3463,13 @@ mod tests {
             .expect("custom state should be accepted");
 
         let mutation = terminal
-            .release_agent_with_mutation("custom:pi", "pi", Some(11))
+            .release_agent_with_mutation("custom:pi", "codex", Some(11))
             .expect("custom release should be accepted");
 
         assert!(!mutation.agent_released);
         assert!(terminal.hook_authority.is_none());
-        assert_eq!(terminal.detected_agent, Some(Agent::Pi));
-        assert_eq!(terminal.effective_agent_label(), Some("pi"));
+        assert_eq!(terminal.detected_agent, Some(Agent::Codex));
+        assert_eq!(terminal.effective_agent_label(), Some("codex"));
         assert_eq!(terminal.state, AgentState::Idle);
     }
 
@@ -5694,10 +3485,10 @@ mod tests {
         );
         terminal.set_agent_name("reviewer".into());
 
-        terminal.set_detected_state(Some(Agent::Grok), AgentState::Idle);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
 
         assert!(terminal.agent_name.is_none());
-        assert_eq!(terminal.effective_known_agent(), Some(Agent::Grok));
+        assert_eq!(terminal.effective_known_agent(), Some(Agent::Codex));
     }
 
     #[test]
@@ -5706,7 +3497,7 @@ mod tests {
         terminal
             .set_hook_authority_at(
                 "custom:agent".into(),
-                "pi".into(),
+                "codex".into(),
                 AgentState::Working,
                 None,
                 None,
@@ -5733,50 +3524,6 @@ mod tests {
     }
 
     #[test]
-    fn accepted_same_kind_hook_owner_replacement_clears_the_alias() {
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::Pi,
-            "herdr:pi",
-            "pi",
-            crate::agent_resume::AgentSessionRef::path(test_session_path("first.jsonl")).unwrap(),
-        );
-        terminal
-            .set_hook_authority_at(
-                "herdr:pi".into(),
-                "pi".into(),
-                AgentState::Working,
-                None,
-                crate::agent_resume::AgentSessionRef::path(test_session_path("first.jsonl")),
-                Some(20),
-                Instant::now(),
-            )
-            .expect("initial hook should be accepted");
-        terminal.set_agent_name("reviewer".into());
-        terminal
-            .clear_hook_authority_with_mutation(Some("herdr:pi"), Some(21))
-            .expect("hook clear should be accepted");
-        assert_eq!(terminal.agent_name.as_deref(), Some("reviewer"));
-
-        terminal
-            .set_hook_authority_at(
-                "herdr:pi".into(),
-                "pi".into(),
-                AgentState::Idle,
-                None,
-                crate::agent_resume::AgentSessionRef::path(test_session_path("second.jsonl")),
-                Some(22),
-                Instant::now(),
-            )
-            .expect("replacement hook should be accepted");
-
-        assert!(terminal.agent_name.is_none());
-        assert_eq!(terminal.effective_known_agent(), Some(Agent::Pi));
-    }
-
-    #[test]
     fn launch_command_alone_does_not_make_a_terminal_an_agent() {
         let terminal = test_terminal().with_launch_argv(vec!["just".into(), "dev".into()]);
 
@@ -5787,13 +3534,13 @@ mod tests {
     fn release_agent_clears_matching_restored_session_ref_before_detection() {
         let mut terminal = test_terminal();
         terminal.set_persisted_agent_session(crate::agent_resume::PersistedAgentSession {
-            source: "herdr:hermes".into(),
-            agent: "hermes".into(),
+            source: "herdr:codex".into(),
+            agent: "codex".into(),
             session_ref: crate::agent_resume::AgentSessionRef::id("hermes-session").unwrap(),
         });
 
         let mutation = terminal
-            .release_agent_with_mutation("herdr:hermes", "hermes", Some(21))
+            .release_agent_with_mutation("herdr:codex", "codex", Some(21))
             .expect("accepted release");
 
         assert!(mutation.session_ref_changed);
@@ -5809,10 +3556,10 @@ mod tests {
             agent: "claude".into(),
             session_ref: crate::agent_resume::AgentSessionRef::id("claude-session").unwrap(),
         });
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
 
         let mutation = terminal
-            .release_agent_with_mutation("herdr:pi", "pi", Some(21))
+            .release_agent_with_mutation("herdr:codex", "codex", Some(21))
             .expect("visible agent release should be accepted");
 
         assert!(!mutation.session_ref_changed);
@@ -5827,41 +3574,6 @@ mod tests {
     }
 
     #[test]
-    fn process_exit_clears_matching_persisted_session_ref() {
-        let mut terminal = test_terminal();
-        let session_ref =
-            crate::agent_resume::AgentSessionRef::path(test_session_path("pi.jsonl")).unwrap();
-        terminal.set_persisted_agent_session(crate::agent_resume::PersistedAgentSession {
-            source: "herdr:pi".into(),
-            agent: "pi".into(),
-            session_ref: session_ref.clone(),
-        });
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Working);
-
-        let mutation = terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
-            AgentState::Idle,
-            false,
-            false,
-            false,
-            true,
-            std::time::Instant::now(),
-        );
-
-        assert!(mutation.session_ref_changed);
-        assert!(terminal.persisted_agent_session.is_none());
-
-        let delayed = terminal.set_agent_session_ref(
-            "herdr:pi".into(),
-            "pi".into(),
-            Some(session_ref),
-            Some(21),
-        );
-        assert!(delayed.is_none());
-        assert!(terminal.persisted_agent_session.is_none());
-    }
-
-    #[test]
     fn process_exit_preserves_foreign_persisted_session_ref() {
         let mut terminal = test_terminal();
         terminal.set_persisted_agent_session(crate::agent_resume::PersistedAgentSession {
@@ -5869,10 +3581,10 @@ mod tests {
             agent: "claude".into(),
             session_ref: crate::agent_resume::AgentSessionRef::id("claude-session").unwrap(),
         });
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Working);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Working);
 
         let mutation = terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
+            Some(Agent::Codex),
             AgentState::Idle,
             false,
             false,
@@ -5920,7 +3632,7 @@ mod tests {
         let now = std::time::Instant::now();
 
         terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::OpenCode),
+            Some(Agent::Codex),
             AgentState::Idle,
             false,
             false,
@@ -5934,7 +3646,7 @@ mod tests {
             .agent_process_exited_within(now + Duration::from_secs(3), Duration::from_secs(2)));
 
         terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::OpenCode),
+            Some(Agent::Codex),
             AgentState::Working,
             false,
             false,
@@ -5960,7 +3672,7 @@ mod tests {
         );
 
         let mutation =
-            terminal.set_detected_state_with_mutation(Some(Agent::Grok), AgentState::Idle);
+            terminal.set_detected_state_with_mutation(Some(Agent::Codex), AgentState::Idle);
 
         assert!(!mutation.session_ref_changed);
         assert!(terminal.hook_authority.is_none());
@@ -5975,44 +3687,15 @@ mod tests {
     }
 
     #[test]
-    fn detected_agent_disappearance_does_not_clear_full_lifecycle_hook_session_ref() {
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Kimi), AgentState::Idle);
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::Kimi,
-            "herdr:kimi",
-            "kimi",
-            crate::agent_resume::AgentSessionRef::id("kimi-session").unwrap(),
-        );
-        terminal.set_hook_authority_with_session_ref(
-            "herdr:kimi".into(),
-            "kimi".into(),
-            AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::id("kimi-session"),
-            Some(20),
-        );
-
-        let mutation = terminal.set_detected_state_with_mutation(None, AgentState::Unknown);
-
-        assert!(!mutation.session_ref_changed);
-        assert!(terminal.hook_authority.is_some());
-        assert!(terminal.persisted_agent_session.is_none());
-        assert_eq!(terminal.effective_agent_label(), Some("kimi"));
-    }
-
-    #[test]
     fn detected_agent_disappearance_preserves_matching_persisted_session_ref() {
         let mut terminal = test_terminal();
         terminal.set_persisted_agent_session(crate::agent_resume::PersistedAgentSession {
-            source: "herdr:opencode".into(),
-            agent: "opencode".into(),
+            source: "herdr:codex".into(),
+            agent: "codex".into(),
             session_ref: crate::agent_resume::AgentSessionRef::id("opencode-session").unwrap(),
         });
 
-        let first =
-            terminal.set_detected_state_with_mutation(Some(Agent::OpenCode), AgentState::Idle);
+        let first = terminal.set_detected_state_with_mutation(Some(Agent::Codex), AgentState::Idle);
         assert!(!first.session_ref_changed);
         assert!(terminal.persisted_agent_session.is_some());
 
@@ -6025,8 +3708,8 @@ mod tests {
     fn initial_unknown_detection_preserves_restored_session_ref() {
         let mut terminal = test_terminal();
         terminal.set_persisted_agent_session(crate::agent_resume::PersistedAgentSession {
-            source: "herdr:hermes".into(),
-            agent: "hermes".into(),
+            source: "herdr:codex".into(),
+            agent: "codex".into(),
             session_ref: crate::agent_resume::AgentSessionRef::id("hermes-session").unwrap(),
         });
 
@@ -6036,69 +3719,12 @@ mod tests {
     }
 
     #[test]
-    fn unsequenced_hook_report_is_ignored_after_source_uses_sequence() {
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::Pi,
-            "herdr:pi",
-            "pi",
-            crate::agent_resume::AgentSessionRef::path(test_session_path("root.jsonl")).unwrap(),
-        );
-        terminal.set_hook_authority(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            Some(20),
-        );
-
-        let change = terminal.set_hook_authority(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Idle,
-            None,
-            None,
-        );
-
-        assert!(change.is_none());
-        assert_eq!(terminal.state, AgentState::Working);
-    }
-
-    #[test]
-    fn stale_clear_all_sequence_is_checked_against_current_authority_source() {
-        let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
-        anchor_full_lifecycle_session(
-            &mut terminal,
-            Agent::Pi,
-            "herdr:pi",
-            "pi",
-            crate::agent_resume::AgentSessionRef::path(test_session_path("root.jsonl")).unwrap(),
-        );
-        terminal.set_hook_authority(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            Some(20),
-        );
-
-        let change = terminal.clear_hook_authority(None, Some(19));
-
-        assert!(change.is_none());
-        assert_eq!(terminal.state, AgentState::Working);
-        assert!(terminal.hook_authority.is_some());
-    }
-
-    #[test]
     fn same_sequence_from_different_sources_is_independent() {
         let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         terminal.set_hook_authority(
-            "herdr:pi".into(),
-            "pi".into(),
+            "herdr:codex".into(),
+            "codex".into(),
             AgentState::Working,
             None,
             Some(20),
@@ -6106,7 +3732,7 @@ mod tests {
 
         terminal.set_hook_authority(
             "custom:pi".into(),
-            "pi".into(),
+            "codex".into(),
             AgentState::Idle,
             None,
             Some(19),

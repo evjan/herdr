@@ -3731,7 +3731,7 @@ mod tests {
     #[test]
     fn same_agent_after_reported_exit_is_a_replacement_process() {
         assert_eq!(
-            foreground_shell_agent_action(Some(Agent::Pi), Some(Agent::Pi), false, true),
+            foreground_shell_agent_action(Some(Agent::Codex), Some(Agent::Codex), false, true),
             ForegroundShellAgentAction::ReportReplacementProcess
         );
     }
@@ -3769,7 +3769,7 @@ mod tests {
     #[test]
     fn foreground_agent_job_is_not_clear_signal() {
         assert_eq!(
-            foreground_shell_agent_action(Some(Agent::Claude), Some(Agent::OpenCode), true, false,),
+            foreground_shell_agent_action(Some(Agent::Claude), Some(Agent::Codex), true, false,),
             ForegroundShellAgentAction::ObserveProbe
         );
     }
@@ -3805,7 +3805,7 @@ mod tests {
             process_group_id: 99,
             processes: vec![
                 foreground_process(99, "fence"),
-                foreground_process(100, "pi"),
+                foreground_process(100, "codex"),
             ],
         };
 
@@ -4061,7 +4061,7 @@ mod tests {
         assert!(should_skip_process_probe_for_lifecycle_authority(
             true,
             ProcessProbeInput {
-                current_agent: Some(Agent::Pi),
+                current_agent: Some(Agent::Codex),
                 elapsed_since_process_check: PROCESS_RECHECK_IDENTIFIED,
                 ..process_probe_input()
             }
@@ -4069,7 +4069,7 @@ mod tests {
         assert!(!should_skip_process_probe_for_lifecycle_authority(
             false,
             ProcessProbeInput {
-                current_agent: Some(Agent::Pi),
+                current_agent: Some(Agent::Codex),
                 elapsed_since_process_check: PROCESS_RECHECK_IDENTIFIED,
                 ..process_probe_input()
             }
@@ -4079,7 +4079,7 @@ mod tests {
     #[test]
     fn lifecycle_authority_keeps_periodic_probes_without_an_observed_group() {
         let input = ProcessProbeInput {
-            current_agent: Some(Agent::Pi),
+            current_agent: Some(Agent::Codex),
             foreground_pgid: None,
             last_foreground_pgid: None,
             elapsed_since_process_check: PROCESS_RECHECK_IDENTIFIED,
@@ -4096,7 +4096,7 @@ mod tests {
         assert!(!should_skip_process_probe_for_lifecycle_authority(
             true,
             ProcessProbeInput {
-                current_agent: Some(Agent::Pi),
+                current_agent: Some(Agent::Codex),
                 pending_foreground_shell_clear: true,
                 ..process_probe_input()
             }
@@ -4104,8 +4104,8 @@ mod tests {
         assert!(!should_skip_process_probe_for_lifecycle_authority(
             true,
             ProcessProbeInput {
-                current_agent: Some(Agent::Pi),
-                suppressed_agent: Some(Agent::Pi),
+                current_agent: Some(Agent::Codex),
+                suppressed_agent: Some(Agent::Codex),
                 ..process_probe_input()
             }
         ));
@@ -4124,7 +4124,7 @@ mod tests {
         assert!(!should_skip_process_probe_for_lifecycle_authority(
             true,
             ProcessProbeInput {
-                current_agent: Some(Agent::Pi),
+                current_agent: Some(Agent::Codex),
                 foreground_pgid: Some(43),
                 ..process_probe_input()
             }
@@ -4383,17 +4383,17 @@ mod tests {
 
     #[test]
     fn transient_process_miss_keeps_current_agent_detected() {
-        let mut presence = AgentDetectionPresence::from_agent(Some(Agent::Pi));
+        let mut presence = AgentDetectionPresence::from_agent(Some(Agent::Codex));
 
         let changed = presence.observe_process_probe(None);
 
         assert!(!changed, "one miss should not clear the detected agent");
-        assert_eq!(presence.current_agent(), Some(Agent::Pi));
+        assert_eq!(presence.current_agent(), Some(Agent::Codex));
     }
 
     #[test]
     fn agent_only_clears_after_confirmation_misses() {
-        let mut presence = AgentDetectionPresence::from_agent(Some(Agent::Pi));
+        let mut presence = AgentDetectionPresence::from_agent(Some(Agent::Codex));
 
         for attempt in 1..AGENT_MISS_CONFIRMATION_ATTEMPTS {
             let changed = presence.observe_process_probe(None);
@@ -4401,7 +4401,7 @@ mod tests {
                 !changed,
                 "miss {attempt} should stay in the confirmation window"
             );
-            assert_eq!(presence.current_agent(), Some(Agent::Pi));
+            assert_eq!(presence.current_agent(), Some(Agent::Codex));
         }
 
         let changed = presence.observe_process_probe(None);

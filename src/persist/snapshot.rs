@@ -566,7 +566,7 @@ mod tests {
             .unwrap()
             .begin_managed_agent(
                 "reviewer".into(),
-                crate::detect::Agent::Pi,
+                crate::detect::Agent::Codex,
                 now,
                 std::time::Duration::ZERO,
                 std::time::Duration::from_secs(1),
@@ -579,14 +579,14 @@ mod tests {
 
         let terminal = state.terminals.get_mut(&terminal_id).unwrap();
         terminal.set_detected_state(
-            Some(crate::detect::Agent::Pi),
+            Some(crate::detect::Agent::Codex),
             crate::detect::AgentState::Idle,
         );
         assert!(terminal.reconcile_managed_agent_at(now, false));
         let active = capture_from_state(&state);
         let active_pane = &active.workspaces[0].tabs[0].panes[&root.raw()];
         assert_eq!(active_pane.agent_name.as_deref(), Some("reviewer"));
-        assert_eq!(active_pane.managed_agent_kind.as_deref(), Some("pi"));
+        assert_eq!(active_pane.managed_agent_kind.as_deref(), Some("codex"));
     }
 
     #[test]
@@ -1109,17 +1109,17 @@ mod tests {
             .clone();
         let terminal = state.terminals.get_mut(&terminal_id).unwrap();
         terminal.set_detected_state(
-            Some(crate::detect::Agent::Pi),
+            Some(crate::detect::Agent::Codex),
             crate::detect::AgentState::Idle,
         );
         terminal.set_persisted_agent_session(crate::agent_resume::PersistedAgentSession {
-            source: "herdr:pi".into(),
-            agent: "pi".into(),
+            source: "herdr:codex".into(),
+            agent: "codex".into(),
             session_ref: crate::agent_resume::AgentSessionRef::path(session_path.clone()).unwrap(),
         });
         terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
-            "pi".into(),
+            "herdr:codex".into(),
+            "codex".into(),
             crate::detect::AgentState::Working,
             None,
             crate::agent_resume::AgentSessionRef::path(session_path.clone()),
@@ -1132,8 +1132,8 @@ mod tests {
             .as_ref()
             .expect("agent session should be captured");
 
-        assert_eq!(agent_session.source, "herdr:pi");
-        assert_eq!(agent_session.agent, "pi");
+        assert_eq!(agent_session.source, "herdr:codex");
+        assert_eq!(agent_session.agent, "codex");
         assert_eq!(
             agent_session.kind,
             crate::agent_resume::AgentSessionRefKind::Path
@@ -1154,8 +1154,8 @@ mod tests {
             .get_mut(&terminal_id)
             .unwrap()
             .set_persisted_agent_session(crate::agent_resume::PersistedAgentSession {
-                source: "herdr:opencode".into(),
-                agent: "opencode".into(),
+                source: "herdr:codex".into(),
+                agent: "codex".into(),
                 session_ref: crate::agent_resume::AgentSessionRef::id("opencode-session").unwrap(),
             });
 
@@ -1165,8 +1165,8 @@ mod tests {
             .as_ref()
             .expect("persisted agent session should be captured");
 
-        assert_eq!(agent_session.source, "herdr:opencode");
-        assert_eq!(agent_session.agent, "opencode");
+        assert_eq!(agent_session.source, "herdr:codex");
+        assert_eq!(agent_session.agent, "codex");
         assert_eq!(
             agent_session.kind,
             crate::agent_resume::AgentSessionRefKind::Id

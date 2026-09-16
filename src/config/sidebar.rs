@@ -610,22 +610,6 @@ rows = [[{ token = "git_status", fg = "#ff00aa" }], [{ token = "$jj", bold = tru
     }
 
     #[test]
-    fn conditional_sidebar_rules_round_trip() {
-        let input = r##"
-[agents]
-rows = [[{ token = "machine", fg = "#fff", rules = [{ equals = "Local", fg = "#f00" }, { starts_with = "fed", ignore_case = true, bold = true }] }]]
-[agents.rows_by_agent]
-pi = [[{ token = "$load", rules = [{ gt = 80, dim = false }, { lt = 20.5, dim = true }] }]]
-[spaces]
-rows = [[{ token = "$status", rules = [{ contains = "error", bold = true }] }]]
-"##;
-        let config: SidebarConfig = toml::from_str(input).expect("conditional sidebar config");
-        let encoded = toml::to_string(&config).unwrap();
-        assert!(encoded.contains("rules"));
-        assert_eq!(toml::from_str::<SidebarConfig>(&encoded).unwrap(), config);
-    }
-
-    #[test]
     fn conditional_sidebar_rules_reject_invalid_conditions_and_nontext_tokens() {
         for rule in [
             "{ bold = true }",

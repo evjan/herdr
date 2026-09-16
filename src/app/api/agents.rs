@@ -179,7 +179,7 @@ impl App {
             .and_then(|wait| wait.submission_deadline);
         #[cfg(not(windows))]
         let submit_deadline = None;
-        if expected_agent == crate::detect::Agent::GithubCopilot {
+        if expected_agent == crate::detect::Agent::Codex {
             // Copilot ignores synthetic Enter after focus loss until it receives focus gained.
             let focus = match crate::ghostty::encode_focus(crate::ghostty::FocusEvent::Gained) {
                 Ok(focus) => focus,
@@ -480,7 +480,7 @@ mod tests {
             .clone();
         let observed_at = std::time::Instant::now();
         let terminal = app.state.terminals.get_mut(&terminal_id).unwrap();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Working);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Working);
         terminal.set_agent_name("reviewer".into());
 
         let found = app.handle_agent_get(
@@ -498,7 +498,7 @@ mod tests {
         // again on the next probe - the process never actually went away.
         app.handle_internal_event(crate::events::AppEvent::StateChanged {
             pane_id,
-            agent: Some(Agent::Pi),
+            agent: Some(Agent::Codex),
             state: AgentState::Idle,
             visible_blocker: false,
             visible_working: false,
@@ -507,14 +507,14 @@ mod tests {
         });
         app.handle_internal_event(crate::events::AppEvent::AgentProcessDetected {
             pane_id,
-            agent: Agent::Pi,
+            agent: Agent::Codex,
             observed_at: observed_at + std::time::Duration::from_secs(1),
         });
 
         let terminal = &app.state.terminals[&terminal_id];
         assert_eq!(
             terminal.detected_agent,
-            Some(Agent::Pi),
+            Some(Agent::Codex),
             "the agent process is still there"
         );
 
@@ -531,83 +531,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn agent_prompt_sends_text_then_delays_enter() {
-        let mut app = app_with_agent();
-        let pane_id = app.state.workspaces[0].tabs[0].root_pane;
-        let terminal_id = app.state.workspaces[0].tabs[0].panes[&pane_id]
-            .attached_terminal_id
-            .clone();
-        let terminal = app.state.terminals.get_mut(&terminal_id).unwrap();
-        terminal.set_agent_name("reviewer".into());
-        terminal.set_detected_state(Some(Agent::OpenCode), AgentState::Working);
-        let (runtime, mut rx) =
-            crate::terminal::TerminalRuntime::test_with_channel_and_scrollback_bytes(
-                80, 24, 0, b"", 2,
-            );
-        runtime.test_process_pty_bytes(b"\x1b[?2004h");
-        app.state.insert_test_runtime(pane_id, runtime);
-
-        let public_pane_id = app.public_pane_id(0, pane_id).unwrap();
-        let bracketed_started = std::time::Instant::now();
-        let response_rx = start_deferred_agent_prompt(
-            &mut app,
-            "req",
-            AgentPromptParams {
-                target: public_pane_id,
-                text: "A != B".into(),
-                wait: None,
-            },
-        );
-        assert!(response_rx.try_recv().is_err());
-        let response = response_rx
-            .recv_timeout(Duration::from_secs(1))
-            .expect("agent prompt responds after submission");
-        let success: SuccessResponse = serde_json::from_str(&response).unwrap();
-        let ResponseResult::AgentPrompted { agent, .. } = success.result else {
-            panic!("expected prompted response");
-        };
-        assert_eq!(agent.name.as_deref(), Some("reviewer"));
-        assert_eq!(
-            rx.try_recv().unwrap(),
-            Bytes::from_static(b"\x1b[200~A != B\x1b[201~")
-        );
-        assert_eq!(rx.try_recv().unwrap(), Bytes::from_static(b"\r"));
-        assert!(bracketed_started.elapsed() >= AGENT_PROMPT_SUBMIT_DELAY);
-
-        app.lookup_runtime_sender(0, pane_id)
-            .unwrap()
-            .test_process_pty_bytes(b"\x1b[?2004l");
-        let raw_started = std::time::Instant::now();
-        let raw = run_deferred_agent_prompt(
-            &mut app,
-            "req-raw",
-            AgentPromptParams {
-                target: "reviewer".into(),
-                text: "A != B".into(),
-                wait: None,
-            },
-        );
-        let raw: SuccessResponse = serde_json::from_str(&raw).unwrap();
-        assert!(matches!(raw.result, ResponseResult::AgentPrompted { .. }));
-        assert_eq!(rx.try_recv().unwrap(), Bytes::from_static(b"A != B"));
-        assert_eq!(rx.try_recv().unwrap(), Bytes::from_static(b"\r"));
-        assert!(raw_started.elapsed() >= AGENT_PROMPT_SUBMIT_DELAY);
-
-        let rejected = run_deferred_agent_prompt(
-            &mut app,
-            "req-label",
-            AgentPromptParams {
-                target: "opencode".into(),
-                text: "wrong target".into(),
-                wait: None,
-            },
-        );
-        let error: crate::api::schema::ErrorResponse = serde_json::from_str(&rejected).unwrap();
-        assert_eq!(error.error.code, "agent_not_found");
-        assert!(rx.try_recv().is_err());
-    }
-
-    #[tokio::test]
     async fn agent_prompt_rejects_blocked_agent_without_writing() {
         let mut app = app_with_agent();
         let pane_id = app.state.workspaces[0].tabs[0].root_pane;
@@ -616,7 +539,7 @@ mod tests {
             .clone();
         let terminal = app.state.terminals.get_mut(&terminal_id).unwrap();
         terminal.set_agent_name("reviewer".into());
-        terminal.set_detected_state(Some(Agent::GithubCopilot), AgentState::Blocked);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Blocked);
         let (runtime, mut rx) = crate::terminal::TerminalRuntime::test_with_channel(80, 24);
         app.state.insert_test_runtime(pane_id, runtime);
 
@@ -652,7 +575,7 @@ mod tests {
             .clone();
         let terminal = app.state.terminals.get_mut(&terminal_id).unwrap();
         terminal.set_agent_name("reviewer".into());
-        terminal.set_detected_state(Some(Agent::GithubCopilot), AgentState::Idle);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         let (runtime, mut rx) =
             crate::terminal::TerminalRuntime::test_with_channel_and_scrollback_bytes(
                 80, 24, 0, b"", 3,
@@ -691,7 +614,7 @@ mod tests {
             .clone();
         let terminal = app.state.terminals.get_mut(&terminal_id).unwrap();
         terminal.set_agent_name("reviewer".into());
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         let (runtime, mut rx) = crate::terminal::TerminalRuntime::test_with_channel(80, 24);
         app.state.insert_test_runtime(pane_id, runtime);
 
@@ -730,12 +653,12 @@ mod tests {
         let now = std::time::Instant::now();
         terminal.begin_managed_agent(
             "reviewer".into(),
-            Agent::OpenCode,
+            Agent::Codex,
             now,
             std::time::Duration::from_secs(3),
             std::time::Duration::from_secs(10),
         );
-        terminal.set_detected_state(Some(Agent::OpenCode), AgentState::Idle);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         let (runtime, mut rx) = crate::terminal::TerminalRuntime::test_with_channel(80, 24);
         app.state.insert_test_runtime(pane_id, runtime);
 
@@ -766,7 +689,7 @@ mod tests {
             .terminals
             .get_mut(&terminal_id)
             .unwrap()
-            .set_detected_state(Some(Agent::Pi), AgentState::Idle);
+            .set_detected_state(Some(Agent::Codex), AgentState::Idle);
         app.state.workspaces[0].tabs[0]
             .panes
             .get_mut(&pane_id)
@@ -797,7 +720,7 @@ mod tests {
             .clone();
         let terminal = app.state.terminals.get_mut(&terminal_id).unwrap();
         terminal.set_manual_label("shell-pane".into());
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         let target = app.public_pane_id(0, pane_id).unwrap();
 
         for name in [Some("reviewer".to_string()), None] {

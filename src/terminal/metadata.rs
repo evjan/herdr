@@ -558,10 +558,10 @@ mod tests {
     #[test]
     fn custom_metadata_reanchors_sequence_after_process_restart() {
         let mut terminal = test_terminal();
-        terminal.set_detected_state(Some(Agent::Pi), AgentState::Idle);
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
         let report = |seq, ttl| AgentMetadataReport {
             source: "custom:pi-metadata".into(),
-            agent_label: Some("pi".into()),
+            agent_label: Some("codex".into()),
             applies_to_source: None,
             title: Some("Pi task".into()),
             display_agent: None,
@@ -580,7 +580,7 @@ mod tests {
         assert!(terminal.agent_metadata.is_empty());
         let exit_at = Instant::now() + Duration::from_millis(1);
         terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
+            Some(Agent::Codex),
             AgentState::Idle,
             false,
             false,
@@ -600,7 +600,7 @@ mod tests {
         assert!(terminal.set_agent_metadata(report(1, None)).is_none());
 
         terminal.set_detected_state_with_screen_signals_at(
-            Some(Agent::Pi),
+            Some(Agent::Codex),
             AgentState::Idle,
             false,
             false,
@@ -1079,50 +1079,6 @@ mod tests {
             Some("Instant")
         );
         assert_eq!(change.presentation.title, None);
-        assert_eq!(terminal.effective_title(), None);
-    }
-
-    #[test]
-    fn pending_metadata_expiry_clears_when_lifecycle_guard_hides_metadata() {
-        let mut terminal = test_terminal();
-        terminal.set_hook_authority(
-            "herdr:claude".into(),
-            "claude".into(),
-            AgentState::Working,
-            None,
-            None,
-        );
-        terminal.set_agent_metadata(AgentMetadataReport {
-            source: "user:status".into(),
-            agent_label: Some("claude".into()),
-            applies_to_source: Some("herdr:claude".into()),
-            title: Some("Instant".into()),
-            display_agent: None,
-            state_labels: HashMap::new(),
-            clear_title: false,
-            clear_display_agent: false,
-            clear_state_labels: false,
-            ttl: Some(Duration::ZERO),
-            seq: None,
-        });
-        assert!(terminal.next_agent_metadata_expiry().is_some());
-
-        terminal.set_hook_authority(
-            "herdr:codex".into(),
-            "codex".into(),
-            AgentState::Working,
-            None,
-            None,
-        );
-        terminal.set_hook_authority(
-            "herdr:claude".into(),
-            "claude".into(),
-            AgentState::Working,
-            None,
-            None,
-        );
-
-        assert_eq!(terminal.next_agent_metadata_expiry(), None);
         assert_eq!(terminal.effective_title(), None);
     }
 

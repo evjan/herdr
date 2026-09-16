@@ -290,7 +290,7 @@ fn print_token_rule_profiles() {
                 let mut pipeline = RenderPipeline::with_config(build(count), &config);
                 pipeline.app.state.ensure_test_terminals();
                 for terminal in pipeline.app.state.terminals.values_mut() {
-                    terminal.detected_agent = Some(crate::detect::Agent::Pi);
+                    terminal.detected_agent = Some(crate::detect::Agent::Codex);
                 }
                 pipeline
                     .client

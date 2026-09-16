@@ -2795,7 +2795,7 @@ mod tests {
 
         state.handle_app_event(AppEvent::StateChanged {
             pane_id,
-            agent: Some(Agent::Pi),
+            agent: Some(Agent::Codex),
             state: AgentState::Working,
             visible_blocker: false,
             visible_working: false,
@@ -2811,7 +2811,7 @@ mod tests {
             .clone();
         let terminal = state.terminals.get(&terminal_id).unwrap();
         assert_eq!(terminal.state, AgentState::Working);
-        assert_eq!(terminal.detected_agent, Some(Agent::Pi));
+        assert_eq!(terminal.detected_agent, Some(Agent::Codex));
     }
 
     #[test]
@@ -2833,7 +2833,7 @@ mod tests {
         // Now transition to Idle while in background
         state.handle_app_event(AppEvent::StateChanged {
             pane_id: bg_pane_id,
-            agent: Some(Agent::Pi),
+            agent: Some(Agent::Codex),
             state: AgentState::Idle,
             visible_blocker: false,
             visible_working: false,
@@ -2866,7 +2866,7 @@ mod tests {
 
         state.handle_app_event(AppEvent::StateChanged {
             pane_id,
-            agent: Some(Agent::Pi),
+            agent: Some(Agent::Codex),
             state: AgentState::Idle,
             visible_blocker: false,
             visible_working: false,
@@ -2888,7 +2888,7 @@ mod tests {
 
         state.handle_app_event(AppEvent::StateChanged {
             pane_id: bg_pane_id,
-            agent: Some(Agent::Pi),
+            agent: Some(Agent::Codex),
             state: AgentState::Idle,
             visible_blocker: false,
             visible_working: false,
@@ -2909,7 +2909,7 @@ mod tests {
 
         state.handle_app_event(AppEvent::StateChanged {
             pane_id: bg_pane_id,
-            agent: Some(Agent::Pi),
+            agent: Some(Agent::Codex),
             state: AgentState::Unknown,
             visible_blocker: false,
             visible_working: false,
@@ -2918,7 +2918,7 @@ mod tests {
         });
         state.handle_app_event(AppEvent::StateChanged {
             pane_id: bg_pane_id,
-            agent: Some(Agent::Pi),
+            agent: Some(Agent::Codex),
             state: AgentState::Idle,
             visible_blocker: false,
             visible_working: false,
@@ -2939,13 +2939,13 @@ mod tests {
 
         state.handle_app_event(AppEvent::AgentProcessDetected {
             pane_id,
-            agent: Agent::Pi,
+            agent: Agent::Codex,
             observed_at: Instant::now(),
         });
         let direct_idle = state
             .handle_app_event(AppEvent::StateChanged {
                 pane_id,
-                agent: Some(Agent::Pi),
+                agent: Some(Agent::Codex),
                 state: AgentState::Idle,
                 visible_blocker: false,
                 visible_working: false,
@@ -2958,13 +2958,13 @@ mod tests {
 
         state.handle_app_event(AppEvent::AgentProcessDetected {
             pane_id,
-            agent: Agent::Pi,
+            agent: Agent::Codex,
             observed_at: Instant::now(),
         });
         for agent_state in [AgentState::Working, AgentState::Blocked] {
             state.handle_app_event(AppEvent::StateChanged {
                 pane_id,
-                agent: Some(Agent::Pi),
+                agent: Some(Agent::Codex),
                 state: agent_state,
                 visible_blocker: agent_state == AgentState::Blocked,
                 visible_working: agent_state == AgentState::Working,
@@ -2975,7 +2975,7 @@ mod tests {
         let update = state
             .handle_app_event(AppEvent::StateChanged {
                 pane_id,
-                agent: Some(Agent::Pi),
+                agent: Some(Agent::Codex),
                 state: AgentState::Idle,
                 visible_blocker: false,
                 visible_working: false,
@@ -3030,7 +3030,7 @@ mod tests {
 
         state.handle_app_event(AppEvent::StateChanged {
             pane_id: bg_pane_id,
-            agent: Some(Agent::Pi),
+            agent: Some(Agent::Codex),
             state: AgentState::Blocked,
             visible_blocker: false,
             visible_working: false,
@@ -3040,7 +3040,7 @@ mod tests {
 
         let toast = state.toast.as_ref().unwrap();
         assert_eq!(toast.kind, ToastKind::NeedsAttention);
-        assert_eq!(toast.title, "pi needs attention");
+        assert_eq!(toast.title, "codex needs attention");
         assert_eq!(toast.context, "background · 2");
     }
 
@@ -3054,7 +3054,7 @@ mod tests {
 
         state.handle_app_event(AppEvent::StateChanged {
             pane_id: bg_pane_id,
-            agent: Some(Agent::Pi),
+            agent: Some(Agent::Codex),
             state: AgentState::Blocked,
             visible_blocker: false,
             visible_working: false,
@@ -3071,7 +3071,7 @@ mod tests {
 
         let toast = state.toast.as_ref().unwrap();
         assert_eq!(toast.kind, ToastKind::NeedsAttention);
-        assert_eq!(toast.title, "pi needs attention");
+        assert_eq!(toast.title, "codex needs attention");
         assert_eq!(toast.context, "background · 2");
         assert!(state.pending_agent_notifications.is_empty());
     }
@@ -3086,7 +3086,7 @@ mod tests {
 
         state.handle_app_event(AppEvent::StateChanged {
             pane_id: bg_pane_id,
-            agent: Some(Agent::Pi),
+            agent: Some(Agent::Codex),
             state: AgentState::Blocked,
             visible_blocker: false,
             visible_working: false,
@@ -3097,7 +3097,7 @@ mod tests {
 
         state.handle_app_event(AppEvent::StateChanged {
             pane_id: bg_pane_id,
-            agent: Some(Agent::Pi),
+            agent: Some(Agent::Codex),
             state: AgentState::Working,
             visible_blocker: false,
             visible_working: true,
@@ -3120,7 +3120,7 @@ mod tests {
 
         state.handle_app_event(AppEvent::StateChanged {
             pane_id: bg_pane_id,
-            agent: Some(Agent::Pi),
+            agent: Some(Agent::Codex),
             state: AgentState::Blocked,
             visible_blocker: false,
             visible_working: false,
@@ -3145,7 +3145,7 @@ mod tests {
 
         state.handle_app_event(AppEvent::StateChanged {
             pane_id,
-            agent: Some(Agent::Pi),
+            agent: Some(Agent::Codex),
             state: AgentState::Blocked,
             visible_blocker: false,
             visible_working: false,
@@ -3172,7 +3172,7 @@ mod tests {
 
         state.handle_app_event(AppEvent::StateChanged {
             pane_id: bg_pane_id,
-            agent: Some(Agent::Pi),
+            agent: Some(Agent::Codex),
             state: AgentState::Blocked,
             visible_blocker: false,
             visible_working: false,
@@ -3200,7 +3200,7 @@ mod tests {
         state.handle_app_event(AppEvent::HookStateReported {
             pane_id: bg_pane_id,
             source: "custom:hermes".into(),
-            agent_label: "hermes".into(),
+            agent_label: "codex".into(),
             state: AgentState::Blocked,
             message: None,
             seq: None,
@@ -3209,7 +3209,7 @@ mod tests {
 
         let toast = state.toast.as_ref().unwrap();
         assert_eq!(toast.kind, ToastKind::NeedsAttention);
-        assert_eq!(toast.title, "hermes needs attention");
+        assert_eq!(toast.title, "codex needs attention");
         assert_eq!(toast.context, "background · 2");
     }
 
@@ -3313,102 +3313,6 @@ mod tests {
     }
 
     #[test]
-    fn official_release_preserves_process_owned_agent_identity() {
-        let mut state = app_with_workspaces(&["active"]);
-        let pane_id = *state.workspaces[0].panes.keys().next().unwrap();
-        let terminal_id = state.workspaces[0]
-            .panes
-            .get(&pane_id)
-            .unwrap()
-            .attached_terminal_id
-            .clone();
-
-        state.handle_app_event(AppEvent::StateChanged {
-            pane_id,
-            agent: Some(Agent::Pi),
-            state: AgentState::Working,
-            visible_blocker: false,
-            visible_working: true,
-            process_exited: false,
-            observed_at: std::time::Instant::now(),
-        });
-        let terminal = state.terminals.get_mut(&terminal_id).unwrap();
-        terminal.set_persisted_agent_session(crate::agent_resume::PersistedAgentSession {
-            source: "herdr:pi".into(),
-            agent: "pi".into(),
-            session_ref: crate::agent_resume::AgentSessionRef::path(
-                std::env::current_dir()
-                    .unwrap()
-                    .join("release-session.jsonl")
-                    .display()
-                    .to_string(),
-            )
-            .unwrap(),
-        });
-        terminal.set_hook_authority(
-            "herdr:pi".into(),
-            "pi".into(),
-            AgentState::Working,
-            None,
-            Some(1),
-        );
-        terminal.set_agent_name("reviewer".into());
-        state.session_dirty = false;
-
-        let updates = state.handle_app_event(AppEvent::HookAgentReleased {
-            pane_id,
-            source: "herdr:pi".into(),
-            agent_label: "pi".into(),
-            known_agent: Some(Agent::Pi),
-            seq: Some(2),
-        });
-
-        assert!(updates.is_empty());
-        let terminal = &state.terminals[&terminal_id];
-        assert_eq!(terminal.state, AgentState::Working);
-        assert_eq!(terminal.detected_agent, Some(Agent::Pi));
-        assert_eq!(terminal.agent_name.as_deref(), Some("reviewer"));
-        assert!(terminal.full_lifecycle_hook_authority_active());
-        assert!(!state.session_dirty);
-    }
-
-    #[test]
-    fn devin_state_report_refreshes_session_without_overriding_screen_state() {
-        let mut state = app_with_workspaces(&["active"]);
-        let pane_id = *state.workspaces[0].panes.keys().next().unwrap();
-        let terminal_id = state.workspaces[0]
-            .panes
-            .get(&pane_id)
-            .unwrap()
-            .attached_terminal_id
-            .clone();
-
-        state.handle_app_event(AppEvent::StateChanged {
-            pane_id,
-            agent: Some(Agent::Devin),
-            state: AgentState::Idle,
-            visible_blocker: false,
-            visible_working: false,
-            process_exited: false,
-            observed_at: std::time::Instant::now(),
-        });
-        state.handle_app_event(AppEvent::HookStateReported {
-            pane_id,
-            source: "herdr:devin".into(),
-            agent_label: "devin".into(),
-            state: AgentState::Working,
-            message: None,
-            seq: Some(1),
-            session_ref: crate::agent_resume::AgentSessionRef::id("devin-session"),
-        });
-
-        let terminal = state.terminals.get(&terminal_id).unwrap();
-        assert_eq!(terminal.state, AgentState::Idle);
-        assert!(terminal.hook_authority.is_none());
-        assert!(terminal.persisted_agent_session.is_some());
-    }
-
-    #[test]
     fn hidden_custom_session_ref_only_update_marks_session_dirty_without_visible_update() {
         let mut state = app_with_workspaces(&["active"]);
         let pane_id = *state.workspaces[0].panes.keys().next().unwrap();
@@ -3419,7 +3323,7 @@ mod tests {
         let first_updates = state.handle_app_event(AppEvent::HookStateReported {
             pane_id,
             source: "custom:pi".into(),
-            agent_label: "pi".into(),
+            agent_label: "codex".into(),
             state: AgentState::Working,
             message: None,
             seq: Some(20),
@@ -3431,7 +3335,7 @@ mod tests {
         let second_updates = state.handle_app_event(AppEvent::HookStateReported {
             pane_id,
             source: "custom:pi".into(),
-            agent_label: "pi".into(),
+            agent_label: "codex".into(),
             state: AgentState::Working,
             message: None,
             seq: Some(21),
@@ -3517,7 +3421,7 @@ mod tests {
 
         state.handle_app_event(AppEvent::StateChanged {
             pane_id: bg_pane_id,
-            agent: Some(Agent::Droid),
+            agent: Some(Agent::Codex),
             state: AgentState::Idle,
             visible_blocker: false,
             visible_working: false,
@@ -3527,7 +3431,7 @@ mod tests {
 
         let toast = state.toast.as_ref().unwrap();
         assert_eq!(toast.kind, ToastKind::Finished);
-        assert_eq!(toast.title, "droid finished");
+        assert_eq!(toast.title, "codex finished");
         assert_eq!(toast.context, "background · 2");
         let target = toast.target.as_ref().expect("toast target");
         assert_eq!(&target.workspace_id, &state.workspaces[1].id);
@@ -3546,7 +3450,7 @@ mod tests {
 
         state.handle_app_event(AppEvent::StateChanged {
             pane_id: bg_pane_id,
-            agent: Some(Agent::Pi),
+            agent: Some(Agent::Codex),
             state: AgentState::Blocked,
             visible_blocker: false,
             visible_working: false,
@@ -3556,7 +3460,7 @@ mod tests {
 
         let toast = state.toast.as_ref().unwrap();
         assert_eq!(toast.kind, ToastKind::NeedsAttention);
-        assert_eq!(toast.title, "pi needs attention");
+        assert_eq!(toast.title, "codex needs attention");
         assert_eq!(toast.context, "background · 2 · logs");
     }
 
@@ -3572,7 +3476,7 @@ mod tests {
 
         state.handle_app_event(AppEvent::StateChanged {
             pane_id: bg_pane_id,
-            agent: Some(Agent::Pi),
+            agent: Some(Agent::Codex),
             state: AgentState::Blocked,
             visible_blocker: false,
             visible_working: false,
@@ -3582,7 +3486,7 @@ mod tests {
 
         let toast = state.toast.as_ref().unwrap();
         assert_eq!(toast.kind, ToastKind::NeedsAttention);
-        assert_eq!(toast.title, "pi needs attention");
+        assert_eq!(toast.title, "codex needs attention");
         assert_eq!(toast.context, "active · 1 · logs");
     }
 
@@ -3595,7 +3499,7 @@ mod tests {
 
         state.handle_app_event(AppEvent::StateChanged {
             pane_id,
-            agent: Some(Agent::Pi),
+            agent: Some(Agent::Codex),
             state: AgentState::Blocked,
             visible_blocker: false,
             visible_working: false,
@@ -3616,7 +3520,7 @@ mod tests {
 
         state.handle_app_event(AppEvent::StateChanged {
             pane_id,
-            agent: Some(Agent::Pi),
+            agent: Some(Agent::Codex),
             state: AgentState::Blocked,
             visible_blocker: false,
             visible_working: false,
@@ -3812,7 +3716,7 @@ mod tests {
             .terminals
             .get_mut(&terminal_id)
             .unwrap()
-            .set_detected_state(Some(Agent::Pi), AgentState::Working);
+            .set_detected_state(Some(Agent::Codex), AgentState::Working);
         assert_eq!(
             state.terminals.get(&terminal_id).unwrap().state,
             AgentState::Working
@@ -3825,8 +3729,8 @@ mod tests {
         assert!(!state.pane_is_in_active_tab(update.ws_idx, pane_id));
         assert_eq!(update.previous_state, AgentState::Working);
         assert_eq!(update.state, AgentState::Idle);
-        assert_eq!(update.agent_label.as_deref(), Some("pi"));
-        assert_eq!(update.known_agent, Some(Agent::Pi));
+        assert_eq!(update.agent_label.as_deref(), Some("codex"));
+        assert_eq!(update.known_agent, Some(Agent::Codex));
         assert!(update.agent_released);
         assert_eq!(
             update.agent_release_status,

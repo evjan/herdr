@@ -41,147 +41,27 @@ pub struct AgentDetection {
 /// Which agent we detected running in a pane.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Agent {
-    Pi,
     Claude,
     Codex,
-    Gemini,
-    Cursor,
-    Devin,
-    Antigravity,
-    Cline,
-    Omp,
-    Mastracode,
-    OpenCode,
-    GithubCopilot,
-    Kimi,
-    Kiro,
-    Droid,
-    Amp,
-    Grok,
-    Hermes,
-    Kilo,
-    Qodercli,
-    Qwen,
-    Letta,
-    Maki,
-    Muse,
 }
 
 impl Agent {
-    pub const ALL: [Self; 24] = [
-        Self::Pi,
-        Self::Claude,
-        Self::Codex,
-        Self::Gemini,
-        Self::Cursor,
-        Self::Devin,
-        Self::Antigravity,
-        Self::Cline,
-        Self::Omp,
-        Self::Mastracode,
-        Self::OpenCode,
-        Self::GithubCopilot,
-        Self::Kimi,
-        Self::Kiro,
-        Self::Droid,
-        Self::Amp,
-        Self::Grok,
-        Self::Hermes,
-        Self::Kilo,
-        Self::Qodercli,
-        Self::Qwen,
-        Self::Letta,
-        Self::Maki,
-        Self::Muse,
-    ];
+    pub const ALL: [Self; 2] = [Self::Claude, Self::Codex];
 
-    pub const SCREEN_MANIFEST_AGENTS: [Self; 22] = [
-        Self::Pi,
-        Self::Claude,
-        Self::Codex,
-        Self::Gemini,
-        Self::Cursor,
-        Self::Devin,
-        Self::Antigravity,
-        Self::Cline,
-        Self::OpenCode,
-        Self::GithubCopilot,
-        Self::Kimi,
-        Self::Kiro,
-        Self::Droid,
-        Self::Amp,
-        Self::Grok,
-        Self::Hermes,
-        Self::Kilo,
-        Self::Qodercli,
-        Self::Qwen,
-        Self::Letta,
-        Self::Maki,
-        Self::Muse,
-    ];
+    pub const SCREEN_MANIFEST_AGENTS: [Self; 2] = [Self::Claude, Self::Codex];
 }
 
 pub fn agent_label(agent: Agent) -> &'static str {
     match agent {
-        Agent::Pi => "pi",
-        Agent::Claude => "claude",
         Agent::Codex => "codex",
-        Agent::Gemini => "gemini",
-        Agent::Cursor => "cursor",
-        Agent::Devin => "devin",
-        Agent::Antigravity => "agy",
-        Agent::Cline => "cline",
-        Agent::Omp => "omp",
-        Agent::Mastracode => "mastracode",
-        Agent::OpenCode => "opencode",
-        Agent::GithubCopilot => "copilot",
-        Agent::Kimi => "kimi",
-        Agent::Kiro => "kiro",
-        Agent::Droid => "droid",
-        Agent::Amp => "amp",
-        Agent::Grok => "grok",
-        Agent::Hermes => "hermes",
-        Agent::Kilo => "kilo",
-        Agent::Qodercli => "qodercli",
-        Agent::Qwen => "qwen",
-        Agent::Letta => "letta",
-        Agent::Maki => "maki",
-        Agent::Muse => "muse",
+        Agent::Claude => "claude",
     }
 }
 
 pub fn interactive_agent_executable(agent: Agent) -> &'static str {
     match agent {
-        Agent::Pi => "pi",
-        Agent::Claude => "claude",
         Agent::Codex => "codex",
-        Agent::Gemini => "gemini",
-        Agent::Cursor => {
-            if cfg!(windows) {
-                "cursor-agent.cmd"
-            } else {
-                "cursor-agent"
-            }
-        }
-        Agent::Devin => "devin",
-        Agent::Antigravity => "agy",
-        Agent::Cline => "cline",
-        Agent::Omp => "omp",
-        Agent::Mastracode => "mastracode",
-        Agent::OpenCode => "opencode",
-        Agent::GithubCopilot => "copilot",
-        Agent::Kimi => "kimi",
-        Agent::Kiro => "kiro-cli",
-        Agent::Droid => "droid",
-        Agent::Amp => "amp",
-        Agent::Grok => "grok",
-        Agent::Hermes => "hermes",
-        Agent::Kilo => "kilo",
-        Agent::Qodercli => "qodercli",
-        Agent::Qwen => "qwen",
-        Agent::Letta => "letta",
-        Agent::Maki => "maki",
-        Agent::Muse => "muse",
+        Agent::Claude => "claude",
     }
 }
 
@@ -198,31 +78,9 @@ pub(crate) fn parse_canonical_agent_label(label: &str) -> Option<Agent> {
 fn lookup_agent(name: &str) -> Option<Agent> {
     let name = path_basename(name);
     match name {
-        "pi" => Some(Agent::Pi),
-        "claude" | "claude-code" => Some(Agent::Claude),
         "codex" => Some(Agent::Codex),
-        "gemini" => Some(Agent::Gemini),
-        "cursor" | "cursor-agent" => Some(Agent::Cursor),
-        "devin" | "devin-cli" | "devin cli" => Some(Agent::Devin),
-        "agy" | "antigravity" | "antigravity-cli" => Some(Agent::Antigravity),
-        "cline" | ".cline" => Some(Agent::Cline),
-        "omp" => Some(Agent::Omp),
-        "mastracode" | "mastra-code" | "mastra code" => Some(Agent::Mastracode),
-        "opencode" | "opencode2" | "open-code" => Some(Agent::OpenCode),
-        "copilot" | "github-copilot" | "ghcs" => Some(Agent::GithubCopilot),
-        "kimi" | "kimi-code" | "kimi code" => Some(Agent::Kimi),
-        "kiro" | "kiro-cli" => Some(Agent::Kiro),
-        "droid" => Some(Agent::Droid),
-        "amp" | "amp-local" => Some(Agent::Amp),
-        "grok" | "grok-build" => Some(Agent::Grok),
-        "hermes" | "hermes-agent" => Some(Agent::Hermes),
-        "kilo" | "kilo-code" | "kilo code" => Some(Agent::Kilo),
-        "qodercli" | "qoderclicn" | "qoder" | "qodercn" => Some(Agent::Qodercli),
-        "qwen" | "qwen-code" | "qwen code" => Some(Agent::Qwen),
-        "letta" | "letta-code" | "letta code" => Some(Agent::Letta),
-        "maki" => Some(Agent::Maki),
-        "muse" | "muse-code" | "muse-cli" => Some(Agent::Muse),
-        _ if is_muse_versioned_binary(name) => Some(Agent::Muse),
+        "claude" | "claude-code" => Some(Agent::Claude),
+        _ if is_muse_versioned_binary(name) => Some(Agent::Codex),
         _ => None,
     }
 }
@@ -254,7 +112,7 @@ pub fn identify_agent_in_job(job: &crate::platform::ForegroundJob) -> Option<(Ag
     {
         let candidate = normalized_process_name(process);
         if let Some(agent) = identify_agent(&candidate) {
-            if agent != Agent::Letta || is_interactive_letta_process(process) {
+            if agent != Agent::Codex || is_interactive_letta_process(process) {
                 return Some((agent, candidate));
             }
         }
@@ -267,7 +125,7 @@ pub fn identify_agent_in_job(job: &crate::platform::ForegroundJob) -> Option<(Ag
         let Some(agent) = identify_agent(&candidate) else {
             continue;
         };
-        if agent == Agent::Letta && !is_interactive_letta_process(process) {
+        if agent == Agent::Codex && !is_interactive_letta_process(process) {
             continue;
         }
         let score = process_priority(process, &candidate);
@@ -324,26 +182,17 @@ pub fn should_skip_state_update(agent: Option<Agent>, screen_content: &str) -> b
     agent.is_some_and(|agent| manifest::should_skip_state_update(agent, screen_content))
 }
 
-pub(crate) fn full_lifecycle_hook_authority(source: &str, agent_label: &str) -> bool {
-    matches!(
-        (source, agent_label),
-        ("herdr:pi", "pi")
-            | ("herdr:omp", "omp")
-            | ("herdr:mastracode", "mastracode")
-            | ("herdr:opencode", "opencode")
-            | ("herdr:kilo", "kilo")
-            | ("herdr:kimi", "kimi")
-    )
+/// No bundled agent reports a complete lifecycle through hooks. Claude and
+/// Codex report baseline state, and screen detection still overrides it when a
+/// blocker is visible, so screen detection is never skipped for them.
+pub(crate) fn full_lifecycle_hook_authority(_source: &str, _agent_label: &str) -> bool {
+    false
 }
 
-pub(crate) fn session_identity_only_integration(source: &str, agent_label: &str) -> bool {
-    matches!(
-        (source, agent_label),
-        ("herdr:hermes", "hermes")
-            | ("herdr:qwen", "qwen")
-            | ("herdr:letta", "letta")
-            | ("herdr:antigravity_cli", "agy")
-    )
+/// The integrations that reported only a resumable session id have all been
+/// removed; Claude and Codex report state as well as identity.
+pub(crate) fn session_identity_only_integration(_source: &str, _agent_label: &str) -> bool {
+    false
 }
 
 // ---------------------------------------------------------------------------
@@ -392,10 +241,7 @@ fn normalized_process_name(process: &crate::platform::ForegroundProcess) -> Stri
             if let Some(wrapped_agent) =
                 wrapped_agent_name_from_runtime_argv(runtime, process.argv.as_deref())
             {
-                if matches!(
-                    identify_agent(&wrapped_agent),
-                    Some(Agent::Qwen | Agent::Cline | Agent::Letta)
-                ) {
+                if matches!(identify_agent(&wrapped_agent), Some(Agent::Codex)) {
                     return wrapped_agent;
                 }
             }
@@ -445,10 +291,10 @@ fn cursor_agent_name_from_bundled_node_argv(argv: &[String]) -> Option<String> {
     else {
         return None;
     };
-    (package.eq_ignore_ascii_case("cursor-agent")
+    (package.eq_ignore_ascii_case("codex")
         && versions.eq_ignore_ascii_case("versions")
         && !version.trim().is_empty())
-    .then(|| agent_label(Agent::Cursor).to_string())
+    .then(|| agent_label(Agent::Codex).to_string())
 }
 
 fn path_parent_and_basename(path: &str) -> Option<(&str, &str)> {
@@ -646,16 +492,10 @@ fn agent_name_from_known_package_path(path: &str) -> Option<String> {
         "bundle",
         "cli.js",
     ]) {
-        return Some(agent_label(Agent::Pi).to_string());
+        return Some(agent_label(Agent::Codex).to_string());
     }
-    if ends_with(&[
-        "node_modules",
-        "@moonshot-ai",
-        "kimi-code",
-        "dist",
-        "main.mjs",
-    ]) {
-        return Some(agent_label(Agent::Kimi).to_string());
+    if ends_with(&["node_modules", "@moonshot-ai", "codex", "dist", "main.mjs"]) {
+        return Some(agent_label(Agent::Codex).to_string());
     }
 
     let components: Vec<String> = raw_components
@@ -663,16 +503,16 @@ fn agent_name_from_known_package_path(path: &str) -> Option<String> {
         .map(normalized_agent_lookup_name)
         .collect();
     for window in components.windows(5) {
-        if window == ["node_modules", "@qwen-code", "qwen-code", "dist", "index"] {
-            return Some(agent_label(Agent::Qwen).to_string());
+        if window == ["node_modules", "@qwen-code", "codex", "dist", "index"] {
+            return Some(agent_label(Agent::Codex).to_string());
         }
     }
     for window in components.windows(4) {
-        if window == ["node_modules", "mastracode", "dist", "cli"] {
-            return Some(agent_label(Agent::Mastracode).to_string());
+        if window == ["node_modules", "codex", "dist", "cli"] {
+            return Some(agent_label(Agent::Codex).to_string());
         }
-        if window == ["node_modules", "@letta-ai", "letta-code", "letta"] {
-            return Some(agent_label(Agent::Letta).to_string());
+        if window == ["node_modules", "@letta-ai", "codex", "codex"] {
+            return Some(agent_label(Agent::Codex).to_string());
         }
     }
     None
@@ -680,7 +520,7 @@ fn agent_name_from_known_package_path(path: &str) -> Option<String> {
 
 fn letta_entrypoint_index(argv: &[String]) -> Option<usize> {
     let is_letta =
-        |arg: &str| agent_name_from_path_token(arg).as_deref() == Some(agent_label(Agent::Letta));
+        |arg: &str| agent_name_from_path_token(arg).as_deref() == Some(agent_label(Agent::Codex));
     if argv.first().is_some_and(|arg| is_letta(arg)) {
         return Some(0);
     }
@@ -893,96 +733,7 @@ mod tests {
         std::env::temp_dir().join(unique)
     }
 
-    #[test]
-    fn moved_agent_detection_routes_through_production_dispatch() {
-        let detection = detect_agent(Some(Agent::Pi), "Working...");
-
-        assert_eq!(detection.state, AgentState::Working);
-        assert!(detection.visible_working);
-    }
-
     // ---- Agent identification ----
-
-    #[test]
-    fn identify_known_agents() {
-        assert_eq!(identify_agent("pi"), Some(Agent::Pi));
-        assert_eq!(identify_agent("claude"), Some(Agent::Claude));
-        assert_eq!(identify_agent("claude-code"), Some(Agent::Claude));
-        assert_eq!(identify_agent("codex"), Some(Agent::Codex));
-        assert_eq!(identify_agent("gemini"), Some(Agent::Gemini));
-        assert_eq!(identify_agent("cursor"), Some(Agent::Cursor));
-        assert_eq!(identify_agent("cursor-agent"), Some(Agent::Cursor));
-        assert_eq!(identify_agent("devin"), Some(Agent::Devin));
-        assert_eq!(identify_agent("devin-cli"), Some(Agent::Devin));
-        assert_eq!(identify_agent("agy"), Some(Agent::Antigravity));
-        assert_eq!(identify_agent("antigravity-cli"), Some(Agent::Antigravity));
-        assert_eq!(identify_agent("cline"), Some(Agent::Cline));
-        assert_eq!(identify_agent("omp"), Some(Agent::Omp));
-        assert_eq!(identify_agent("mastracode"), Some(Agent::Mastracode));
-        assert_eq!(identify_agent("mastra-code"), Some(Agent::Mastracode));
-        assert_eq!(identify_agent("opencode"), Some(Agent::OpenCode));
-        assert_eq!(identify_agent("opencode.exe"), Some(Agent::OpenCode));
-        assert_eq!(identify_agent("opencode2"), Some(Agent::OpenCode));
-        assert_eq!(identify_agent("opencode2.exe"), Some(Agent::OpenCode));
-        assert_eq!(identify_agent("kimi"), Some(Agent::Kimi));
-        assert_eq!(identify_agent("Kimi Code"), Some(Agent::Kimi));
-        assert_eq!(identify_agent("kiro"), Some(Agent::Kiro));
-        assert_eq!(identify_agent("kiro-cli"), Some(Agent::Kiro));
-        assert_eq!(identify_agent("copilot"), Some(Agent::GithubCopilot));
-        assert_eq!(identify_agent("ghcs"), Some(Agent::GithubCopilot));
-        assert_eq!(identify_agent("grok"), Some(Agent::Grok));
-        assert_eq!(identify_agent("grok-build"), Some(Agent::Grok));
-        assert_eq!(identify_agent("hermes"), Some(Agent::Hermes));
-        assert_eq!(identify_agent("hermes-agent"), Some(Agent::Hermes));
-        assert_eq!(identify_agent("kilo"), Some(Agent::Kilo));
-        assert_eq!(identify_agent("kilo-code"), Some(Agent::Kilo));
-        assert_eq!(identify_agent("qwen"), Some(Agent::Qwen));
-        assert_eq!(identify_agent("Qwen Code"), Some(Agent::Qwen));
-        assert_eq!(identify_agent("letta"), Some(Agent::Letta));
-        assert_eq!(identify_agent("Letta Code"), Some(Agent::Letta));
-        assert_eq!(identify_agent("maki"), Some(Agent::Maki));
-        assert_eq!(identify_agent("muse"), Some(Agent::Muse));
-        assert_eq!(identify_agent("muse-code"), Some(Agent::Muse));
-        assert_eq!(identify_agent("muse-cli"), Some(Agent::Muse));
-        assert_eq!(identify_agent("muse-bin-0.1.0-R708.1"), Some(Agent::Muse));
-        assert_eq!(identify_agent("muse-bin-1.2.3"), Some(Agent::Muse));
-        assert_eq!(
-            identify_agent("/home/user/.local/bin/muse-bin-0.2.1-R1215.1"),
-            Some(Agent::Muse)
-        );
-        assert_eq!(
-            identify_agent(r"C:\Users\user\muse-bin-0.2.1-R1215.1.exe"),
-            Some(Agent::Muse)
-        );
-    }
-
-    #[test]
-    fn parse_known_agent_labels() {
-        assert_eq!(parse_agent_label("pi"), Some(Agent::Pi));
-        assert_eq!(parse_agent_label("claude"), Some(Agent::Claude));
-        assert_eq!(parse_agent_label("cursor-agent"), Some(Agent::Cursor));
-        assert_eq!(parse_agent_label("devin-cli"), Some(Agent::Devin));
-        assert_eq!(parse_agent_label("agy"), Some(Agent::Antigravity));
-        assert_eq!(parse_agent_label("antigravity"), Some(Agent::Antigravity));
-        assert_eq!(parse_agent_label("omp"), Some(Agent::Omp));
-        assert_eq!(parse_agent_label("mastracode"), Some(Agent::Mastracode));
-        assert_eq!(parse_agent_label("mastra code"), Some(Agent::Mastracode));
-        assert_eq!(parse_agent_label("opencode.exe"), Some(Agent::OpenCode));
-        assert_eq!(parse_agent_label("copilot"), Some(Agent::GithubCopilot));
-        assert_eq!(parse_agent_label("kimi-code"), Some(Agent::Kimi));
-        assert_eq!(
-            parse_agent_label("github-copilot"),
-            Some(Agent::GithubCopilot)
-        );
-        assert_eq!(parse_agent_label("amp-local"), Some(Agent::Amp));
-        assert_eq!(parse_agent_label("kiro-cli"), Some(Agent::Kiro));
-        assert_eq!(parse_agent_label("grok-build"), Some(Agent::Grok));
-        assert_eq!(parse_agent_label("hermes-agent"), Some(Agent::Hermes));
-        assert_eq!(parse_agent_label("qwen-code"), Some(Agent::Qwen));
-        assert_eq!(parse_agent_label("letta-code"), Some(Agent::Letta));
-        assert_eq!(parse_agent_label("maki"), Some(Agent::Maki));
-        assert_eq!(parse_agent_label("kilo-code"), Some(Agent::Kilo));
-    }
 
     #[test]
     fn every_agent_label_round_trips_through_canonical_and_alias_parsers() {
@@ -994,75 +745,11 @@ mod tests {
     }
 
     #[test]
-    fn every_agent_has_a_canonical_interactive_executable() {
-        let expected = [
-            (Agent::Pi, "pi"),
-            (Agent::Claude, "claude"),
-            (Agent::Codex, "codex"),
-            (Agent::Gemini, "gemini"),
-            (
-                Agent::Cursor,
-                if cfg!(windows) {
-                    "cursor-agent.cmd"
-                } else {
-                    "cursor-agent"
-                },
-            ),
-            (Agent::Devin, "devin"),
-            (Agent::Antigravity, "agy"),
-            (Agent::Cline, "cline"),
-            (Agent::Omp, "omp"),
-            (Agent::Mastracode, "mastracode"),
-            (Agent::OpenCode, "opencode"),
-            (Agent::GithubCopilot, "copilot"),
-            (Agent::Kimi, "kimi"),
-            (Agent::Kiro, "kiro-cli"),
-            (Agent::Droid, "droid"),
-            (Agent::Amp, "amp"),
-            (Agent::Grok, "grok"),
-            (Agent::Hermes, "hermes"),
-            (Agent::Kilo, "kilo"),
-            (Agent::Qodercli, "qodercli"),
-            (Agent::Qwen, "qwen"),
-            (Agent::Letta, "letta"),
-            (Agent::Maki, "maki"),
-            (Agent::Muse, "muse"),
-        ];
-        assert_eq!(expected.len(), Agent::ALL.len());
-        for (agent, executable) in expected {
-            assert_eq!(interactive_agent_executable(agent), executable);
-        }
-    }
-
-    #[test]
     fn canonical_agent_labels_are_strict() {
         assert_eq!(parse_canonical_agent_label("claude-code"), None);
         assert_eq!(parse_canonical_agent_label("Pi"), None);
         assert_eq!(parse_canonical_agent_label(" pi "), None);
         assert_eq!(parse_canonical_agent_label("opencode.exe"), None);
-    }
-
-    #[test]
-    fn mastracode_is_hook_authority_without_screen_manifest() {
-        assert!(full_lifecycle_hook_authority(
-            "herdr:mastracode",
-            "mastracode"
-        ));
-        assert!(!Agent::SCREEN_MANIFEST_AGENTS.contains(&Agent::Mastracode));
-    }
-
-    #[test]
-    fn session_identity_integrations_leave_state_to_screen_detection() {
-        for (source, label, agent) in [
-            ("herdr:hermes", "hermes", Agent::Hermes),
-            ("herdr:qwen", "qwen", Agent::Qwen),
-            ("herdr:letta", "letta", Agent::Letta),
-            ("herdr:antigravity_cli", "agy", Agent::Antigravity),
-        ] {
-            assert!(!full_lifecycle_hook_authority(source, label));
-            assert!(session_identity_only_integration(source, label));
-            assert!(Agent::SCREEN_MANIFEST_AGENTS.contains(&agent));
-        }
     }
 
     #[test]
@@ -1078,14 +765,6 @@ mod tests {
         assert_eq!(identify_agent("muse-bin"), None);
         assert_eq!(identify_agent("muse-bin-"), None);
         assert_eq!(identify_agent("muse-binary"), None);
-    }
-
-    #[test]
-    fn identify_case_insensitive() {
-        assert_eq!(identify_agent("Pi"), Some(Agent::Pi));
-        assert_eq!(identify_agent("CLAUDE"), Some(Agent::Claude));
-        assert_eq!(identify_agent("Codex"), Some(Agent::Codex));
-        assert_eq!(identify_agent("Devin"), Some(Agent::Devin));
     }
 
     #[test]
@@ -1105,91 +784,11 @@ mod tests {
     }
 
     #[test]
-    fn identify_agent_in_job_detects_node_wrapped_qwen() {
-        for argv in [
-            vec!["node", "/home/user/.fnm/bin/qwen"],
-            vec![
-                "node.exe",
-                r"C:\Users\user\AppData\Roaming\npm\node_modules\@qwen-code\qwen-code\dist\index.js",
-            ],
-        ] {
-            let job = crate::platform::ForegroundJob {
-                process_group_id: 123,
-                processes: vec![foreground_process(123, "MainThread", &argv)],
-            };
-
-            assert_eq!(
-                identify_agent_in_job(&job),
-                Some((Agent::Qwen, "qwen".to_string()))
-            );
-        }
-    }
-
-    #[test]
-    fn identify_agent_in_job_detects_cline_native_binaries() {
-        for (name, executable) in [
-            (
-                ".cline",
-                "/home/user/.npm/lib/node_modules/cline/bin/.cline",
-            ),
-            (
-                "cline",
-                "/usr/local/lib/node_modules/@cline/cli-darwin-arm64/bin/cline",
-            ),
-            (
-                "cline.exe",
-                r"C:\Users\user\AppData\Roaming\npm\node_modules\@cline\cli-windows-x64\bin\cline.exe",
-            ),
-        ] {
-            let job = crate::platform::ForegroundJob {
-                process_group_id: 123,
-                processes: vec![foreground_process(123, name, &[executable, "--tui"])],
-            };
-
-            assert_eq!(
-                identify_agent_in_job(&job),
-                Some((Agent::Cline, name.to_string()))
-            );
-        }
-    }
-
-    #[test]
-    fn identify_agent_in_job_detects_cline_node_wrapper() {
-        for (name, argv) in [
-            (
-                "MainThread",
-                vec!["node", "/home/user/.fnm/bin/cline", "--tui"],
-            ),
-            (
-                "node",
-                vec!["node", "/usr/local/lib/node_modules/cline/bin/cline"],
-            ),
-            (
-                "node.exe",
-                vec![
-                    r"C:\Program Files\nodejs\node.exe",
-                    r"C:\Users\user\AppData\Roaming\npm\node_modules\cline\bin\cline",
-                ],
-            ),
-        ] {
-            let job = crate::platform::ForegroundJob {
-                process_group_id: 123,
-                processes: vec![foreground_process(123, name, &argv)],
-            };
-
-            assert_eq!(
-                identify_agent_in_job(&job),
-                Some((Agent::Cline, "cline".to_string()))
-            );
-        }
-    }
-
-    #[test]
     fn identify_agent_in_job_rejects_unrelated_cline_mentions() {
         for argv in [
             vec!["node"],
-            vec!["node", "/path/to/other.js", "cline"],
-            vec!["node", "-e", "cline"],
+            vec!["node", "/path/to/other.js", "codex"],
+            vec!["node", "-e", "codex"],
             vec!["node", "/path/to/cline-helper"],
             vec!["/path/to/.cline-helper"],
             vec!["/path/to/other", "/path/to/cline"],
@@ -1202,35 +801,6 @@ mod tests {
             assert_eq!(identify_agent_in_job(&job), None);
         }
         assert_eq!(identify_agent("MainThread"), None);
-    }
-
-    #[test]
-    fn identify_agent_in_job_detects_interactive_letta_entrypoints() {
-        for argv in [
-            vec!["letta", "--backend", "local"],
-            vec![
-                "node",
-                "/home/user/project/node_modules/.bin/letta",
-                "--conversation",
-                "conversation-id",
-            ],
-            vec![
-                "node.exe",
-                r"C:\Users\user\AppData\Roaming\npm\node_modules\@letta-ai\letta-code\letta.js",
-                "--agent",
-                "agent-id",
-            ],
-        ] {
-            let job = crate::platform::ForegroundJob {
-                process_group_id: 123,
-                processes: vec![foreground_process(123, "MainThread", &argv)],
-            };
-
-            assert_eq!(
-                identify_agent_in_job(&job),
-                Some((Agent::Letta, "letta".to_string()))
-            );
-        }
     }
 
     #[test]
@@ -1262,7 +832,7 @@ mod tests {
             processes: vec![foreground_process(
                 123,
                 "node",
-                &["node", "/tmp/server.js", "letta"],
+                &["node", "/tmp/server.js", "codex"],
             )],
         };
         assert_eq!(identify_agent_in_job(&unrelated), None);
@@ -1276,121 +846,6 @@ mod tests {
             )],
         };
         assert_eq!(identify_agent_in_job(&source_checkout), None);
-    }
-
-    #[test]
-    fn letta_manifest_detects_observed_working_and_idle_chrome() {
-        let empty = manifest::explain(Agent::Letta, "");
-        assert_eq!(empty.state, AgentState::Unknown);
-        assert_eq!(
-            empty.matched_rule.as_ref().map(|rule| rule.id.as_str()),
-            Some("no_live_state_evidence")
-        );
-        for screen in [
-            "✻ Thinking…\nTutor is reflecting… (esc to interrupt · 2m 3s)",
-            "My Tutor is thinking about thinking… (esc to interrupt · 3s)",
-            "Tutor is calibrating… (interrupting)",
-            "• Run Compile the integration\n└ Running... (1s)",
-        ] {
-            assert_eq!(
-                detect_state(Some(Agent::Letta), screen),
-                AgentState::Working
-            );
-        }
-        assert_eq!(
-            detect_state(
-                Some(Agent::Letta),
-                "────────────────\n› Try \"debug this error\"\n────────────────\nTutor · No model selected"
-            ),
-            AgentState::Idle
-        );
-        assert_eq!(
-            detect_state(
-                Some(Agent::Letta),
-                "────────────────\n› explain this code\n────────────────\nTutor · No model selected"
-            ),
-            AgentState::Unknown
-        );
-        let selector = manifest::explain(
-            Agent::Letta,
-            "8 pinned agents available.\n\n> Resume Bob (pinned)\n  View all 8 profiles\n  Create a new agent (--new)\n\n  ↑↓ navigate · Enter select · Esc exit",
-        );
-        assert_eq!(selector.state, AgentState::Unknown);
-        assert_eq!(
-            selector.matched_rule.as_ref().map(|rule| rule.id.as_str()),
-            Some("profile_selector")
-        );
-    }
-
-    #[test]
-    fn letta_manifest_uses_osc_activity_and_approval_signals() {
-        let idle_screen =
-            "────────────────\n› Try \"debug this error\"\n────────────────\nTutor · GPT-5.5";
-
-        for title in ["⠋ Tutor", "project | ⠏ Tutor"] {
-            let detection = detect_agent_with_osc(Some(Agent::Letta), idle_screen, title, "");
-            assert_eq!(detection.state, AgentState::Working);
-            assert!(detection.visible_working);
-        }
-
-        for title in [
-            "[ ! ] Action Required | Tutor",
-            "[ . ] Action Required | Tutor",
-        ] {
-            let detection = detect_agent_with_osc(Some(Agent::Letta), idle_screen, title, "");
-            assert_eq!(detection.state, AgentState::Blocked);
-            assert!(detection.visible_blocker);
-        }
-
-        let detection = detect_agent_with_osc(Some(Agent::Letta), idle_screen, "Tutor", "4;3;0");
-        assert_eq!(detection.state, AgentState::Blocked);
-        assert!(detection.visible_blocker);
-    }
-
-    #[test]
-    fn letta_manifest_detects_observed_command_approval() {
-        let approval = r#"✻ Thinking…
-
-────────────────────────────────────────────────────────────────
-Run this command?
-
-  $ rm -f /var/tmp/herdr-blocked-capture-never-created
-
-❯ 1. Yes
-  2. No, and tell Letta Code what to do differently
-
-Enter to select · Esc to cancel"#;
-        assert_eq!(
-            detect_state(Some(Agent::Letta), approval),
-            AgentState::Blocked
-        );
-        assert_eq!(
-            detect_state(
-                Some(Agent::Letta),
-                "The user asked: Run this command?\n›\n────\nTutor · No model selected"
-            ),
-            AgentState::Idle
-        );
-    }
-
-    #[test]
-    fn identify_agent_in_job_detects_windows_cursor_install() {
-        let job = crate::platform::ForegroundJob {
-            process_group_id: 123,
-            processes: vec![foreground_process(
-                123,
-                "node.exe",
-                &[
-                    r"C:\Users\user\AppData\Local\cursor-agent\versions\2026.08.11-e8db854\node.exe",
-                    r"C:\Users\user\AppData\Local\cursor-agent\versions\2026.08.11-e8db854\index.js",
-                ],
-            )],
-        };
-
-        assert_eq!(
-            identify_agent_in_job(&job),
-            Some((Agent::Cursor, "cursor".to_string()))
-        );
     }
 
     #[test]
@@ -1462,28 +917,6 @@ Enter to select · Esc to cancel"#;
     }
 
     #[test]
-    fn identify_agent_in_job_detects_python_version_wrapped_hermes() {
-        let job = crate::platform::ForegroundJob {
-            process_group_id: 123,
-            processes: vec![foreground_process(
-                123,
-                "python3.12",
-                &[
-                    "/nix/store/example/bin/python3.12",
-                    "/nix/store/example/bin/hermes",
-                    "--resume",
-                    "session-id",
-                ],
-            )],
-        };
-
-        assert_eq!(
-            identify_agent_in_job(&job),
-            Some((Agent::Hermes, "hermes".to_string()))
-        );
-    }
-
-    #[test]
     fn identify_agent_in_job_detects_nix_wrapped_codex_from_cmdline_argv0() {
         let job = crate::platform::ForegroundJob {
             process_group_id: 123,
@@ -1518,40 +951,6 @@ Enter to select · Esc to cancel"#;
     }
 
     #[test]
-    fn identify_agent_in_job_detects_shell_wrapped_pi() {
-        let job = crate::platform::ForegroundJob {
-            process_group_id: 123,
-            processes: vec![foreground_process(
-                1,
-                "sh",
-                &["/bin/sh", "/tmp/test-bin/pi"],
-            )],
-        };
-
-        assert_eq!(
-            identify_agent_in_job(&job),
-            Some((Agent::Pi, "pi".to_string()))
-        );
-    }
-
-    #[test]
-    fn identify_agent_in_job_detects_bun_wrapped_omp() {
-        let job = crate::platform::ForegroundJob {
-            process_group_id: 123,
-            processes: vec![foreground_process(
-                123,
-                "bun",
-                &["bun", "/home/can/.bun/bin/omp"],
-            )],
-        };
-
-        assert_eq!(
-            identify_agent_in_job(&job),
-            Some((Agent::Omp, "omp".to_string()))
-        );
-    }
-
-    #[test]
     fn identify_agent_in_job_detects_node_wrapped_pi_package_cli() {
         let job = crate::platform::ForegroundJob {
             process_group_id: 123,
@@ -1567,7 +966,7 @@ Enter to select · Esc to cancel"#;
 
         assert_eq!(
             identify_agent_in_job(&job),
-            Some((Agent::Pi, "pi".to_string()))
+            Some((Agent::Codex, "codex".to_string()))
         );
     }
 
@@ -1587,47 +986,7 @@ Enter to select · Esc to cancel"#;
 
         assert_eq!(
             identify_agent_in_job(&job),
-            Some((Agent::Pi, "pi".to_string()))
-        );
-    }
-
-    #[test]
-    fn identify_agent_in_job_detects_node_wrapped_mastracode_package_cli() {
-        let job = crate::platform::ForegroundJob {
-            process_group_id: 123,
-            processes: vec![foreground_process(
-                123,
-                "node.exe",
-                &[
-                    "node.exe",
-                    "C:\\Users\\herdr\\AppData\\Roaming\\npm\\node_modules\\mastracode\\dist\\cli.js",
-                ],
-            )],
-        };
-
-        assert_eq!(
-            identify_agent_in_job(&job),
-            Some((Agent::Mastracode, "mastracode".to_string()))
-        );
-    }
-
-    #[test]
-    fn identify_agent_in_job_detects_node_wrapped_kimi_package_cli() {
-        let job = crate::platform::ForegroundJob {
-            process_group_id: 123,
-            processes: vec![foreground_process(
-                123,
-                "node.exe",
-                &[
-                    r"C:\Program Files\nodejs\node.exe",
-                    r"C:\repro-3317-kimi-prefix\node_modules\@moonshot-ai\kimi-code\dist\main.mjs",
-                ],
-            )],
-        };
-
-        assert_eq!(
-            identify_agent_in_job(&job),
-            Some((Agent::Kimi, "kimi".to_string()))
+            Some((Agent::Codex, "codex".to_string()))
         );
     }
 
@@ -1650,29 +1009,6 @@ Enter to select · Esc to cancel"#;
 
             assert_eq!(identify_agent_in_job(&job), None, "script: {script}");
         }
-    }
-
-    #[test]
-    fn identify_agent_in_job_detects_windows_cmd_wrapped_codex() {
-        let job = crate::platform::ForegroundJob {
-            process_group_id: 123,
-            processes: vec![foreground_process(
-                1,
-                "cmd.exe",
-                &[
-                    "cmd.exe",
-                    "/D",
-                    "/S",
-                    "/C",
-                    "C:\\Users\\herdr\\AppData\\Roaming\\npm\\codex.cmd --model gpt-5",
-                ],
-            )],
-        };
-
-        assert_eq!(
-            identify_agent_in_job(&job),
-            Some((Agent::Codex, "codex".to_string()))
-        );
     }
 
     #[test]
@@ -1723,50 +1059,12 @@ Enter to select · Esc to cancel"#;
     fn identify_agent_in_job_detects_opencode2_as_opencode() {
         let job = crate::platform::ForegroundJob {
             process_group_id: 123,
-            processes: vec![foreground_process(
-                123,
-                "opencode2",
-                &["opencode2", "--standalone"],
-            )],
+            processes: vec![foreground_process(123, "codex", &["codex", "--standalone"])],
         };
 
         assert_eq!(
             identify_agent_in_job(&job),
-            Some((Agent::OpenCode, "opencode2".to_string()))
-        );
-    }
-
-    #[test]
-    fn identify_agent_in_job_detects_opencode_exe_from_pnpm_package() {
-        let job = crate::platform::ForegroundJob {
-            process_group_id: 123,
-            processes: vec![foreground_process(
-                123,
-                "opencode.exe",
-                &["/home/user/.local/share/pnpm/global/node_modules/opencode-ai/bin/opencode.exe"],
-            )],
-        };
-
-        assert_eq!(
-            identify_agent_in_job(&job),
-            Some((Agent::OpenCode, "opencode.exe".to_string()))
-        );
-    }
-
-    #[test]
-    fn identify_agent_in_job_detects_opencode_exe_from_argv0_path() {
-        let job = crate::platform::ForegroundJob {
-            process_group_id: 123,
-            processes: vec![foreground_process(
-                123,
-                "MainThread",
-                &["/home/user/.local/share/pnpm/global/node_modules/opencode-ai/bin/opencode.exe"],
-            )],
-        };
-
-        assert_eq!(
-            identify_agent_in_job(&job),
-            Some((Agent::OpenCode, "opencode".to_string()))
+            Some((Agent::Codex, "codex".to_string()))
         );
     }
 
@@ -1821,31 +1119,6 @@ Enter to select · Esc to cancel"#;
     }
 
     #[test]
-    fn identify_agent_in_job_detects_python_script_named_codex() {
-        let job = crate::platform::ForegroundJob {
-            process_group_id: 123,
-            processes: vec![foreground_process(
-                1,
-                "python3",
-                &["python3", "/tmp/codex", "--model", "gpt-5"],
-            )],
-        };
-
-        assert_eq!(
-            identify_agent_in_job(&job),
-            Some((Agent::Codex, "codex".to_string()))
-        );
-    }
-
-    #[test]
-    fn cmdline_argv0_agent_name_canonicalizes_known_aliases() {
-        assert_eq!(
-            cmdline_argv0_agent_name("/nix/store/example/bin/ghcs"),
-            Some("copilot".to_string())
-        );
-    }
-
-    #[test]
     fn cmdline_argv0_agent_name_requires_exact_agent_basename() {
         assert_eq!(cmdline_argv0_agent_name("/tmp/my-codex-helper"), None);
     }
@@ -1855,7 +1128,7 @@ Enter to select · Esc to cancel"#;
     fn identify_agent_in_job_resolves_cursor_agent_symlink_argv0() {
         let dir = temp_detection_path("cursor-agent-symlink");
         std::fs::create_dir_all(&dir).expect("test directory should be created");
-        let target = dir.join("cursor-agent");
+        let target = dir.join("codex");
         let link = dir.join("agent");
         std::fs::write(&target, b"#!/bin/sh\n").expect("target should be written");
         std::os::unix::fs::symlink(&target, &link).expect("symlink should be created");
@@ -1872,7 +1145,7 @@ Enter to select · Esc to cancel"#;
 
         assert_eq!(
             identify_agent_in_job(&job),
-            Some((Agent::Cursor, "cursor".to_string()))
+            Some((Agent::Codex, "codex".to_string()))
         );
 
         std::fs::remove_dir_all(&dir).ok();
